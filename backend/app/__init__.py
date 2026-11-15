@@ -1,0 +1,1 @@
+"""DuoTasks FastAPI application package."""

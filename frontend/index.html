@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>DuoTasks — Tâches Partagées</title>
+
+  <!-- PWA & Home Screen App Meta (Android + iPhone Safari) -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#dc4c3e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="DuoTasks" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="/icon.svg" alt="DuoTasks" class="brand-icon" />
+        <div>
+          <h1>DuoTasks</h1>
+          <span class="subtitle" id="taskCounter">Chargement...</span>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <div class="sync-pill" id="syncPill" title="Synchronisation WebSocket temps réel">
+          <span class="sync-dot" id="syncDot"></span>
+          <span id="syncText">Sync...</span>
+        </div>
+        <button type="button" class="btn-icon" id="installHelpBtn" aria-label="Installer sur l'écran d'accueil">
+          + Icône
+        </button>
+      </div>
+    </header>
+
+    <nav class="filters" aria-label="Filtres couple">
+      <button type="button" class="filter-chip active" data-filter-type="all" data-filter-value="all">Tous</button>
+      <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="me">Moi (@me)</button>
+      <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="wife">Elle (@wife)</button>
+      <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="both">Ensemble</button>
+      <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="courses">#courses</button>
+      <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="maison">#maison</button>
+    </nav>
+
+    <section class="quick-add-card">
+      <form id="quickAddForm" autocomplete="off">
+        <div class="input-row">
+          <input
+            type="text"
+            id="quickAddInput"
+            placeholder="Ex: Acheter du lait demain @wife #courses !1"
+            maxlength="280"
+            required
+          />
+          <button type="submit" class="btn-primary">Ajouter</button>
+        </div>
+
+        <div class="quick-shortcuts">
+          <button type="button" class="shortcut-btn" data-token="@wife">@wife</button>
+          <button type="button" class="shortcut-btn" data-token="@me">@me</button>
+          <button type="button" class="shortcut-btn" data-token="#courses">#courses</button>
+          <button type="button" class="shortcut-btn" data-token="#maison">#maison</button>
+          <button type="button" class="shortcut-btn" data-token="demain">demain</button>
+          <button type="button" class="shortcut-btn" data-token="!1">!1</button>
+        </div>
+
+        <div class="parse-preview" id="parsePreview" aria-live="polite">
+          <span class="preview-label">Aperçu parser :</span>
+          <span class="chip chip-assignee" id="prevAssignee">@both</span>
+          <span class="chip chip-category" id="prevCategory">#inbox</span>
+          <span class="chip chip-due" id="prevDue">today</span>
+          <span class="chip chip-prio" id="prevPrio">P3</span>
+        </div>
+      </form>
+    </section>
+
+    <main class="task-sections">
+      <section aria-labelledby="activeHeading">
+        <div class="section-header">
+          <h2 id="activeHeading">À faire</h2>
+        </div>
+        <ul class="task-list" id="activeTaskList"></ul>
+        <div class="empty-state hidden" id="emptyState">
+          Rien en attente ici. Ajoute une tâche ci-dessus avec <code>@wife</code> ou <code>#courses</code>.
+        </div>
+      </section>
+
+      <section class="completed-section" aria-labelledby="completedHeading">
+        <button type="button" class="section-toggle" id="toggleCompletedBtn">
+          <span id="completedHeading">Terminées (0)</span>
+          <span id="completedChevron">▾</span>
+        </button>
+        <ul class="task-list" id="completedTaskList"></ul>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal d'installation iPhone & Android -->
+  <div class="modal-backdrop hidden" id="installModal" role="dialog" aria-modal="true" aria-labelledby="installTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="installTitle">Installer l'icône sans App Store</h3>
+        <button type="button" class="btn-close" id="closeModalBtn" aria-label="Fermer">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="device-box">
+          <h4>iPhone (Safari uniquement)</h4>
+          <ol>
+            <li>Ouvre cette URL dans <strong>Safari</strong>.</li>
+            <li>Appuie sur le bouton <strong>Partager</strong> (carré avec flèche vers le haut).</li>
+            <li>Choisis <strong>Sur l'écran d'accueil</strong> puis <strong>Ajouter</strong>.</li>
+          </ol>
+        </div>
+        <div class="device-box">
+          <h4>Android (Chrome)</h4>
+          <ol>
+            <li>Ouvre cette URL dans <strong>Chrome</strong>.</li>
+            <li>Appuie sur le menu <strong>⋮</strong> en haut à droite.</li>
+            <li>Choisis <strong>Ajouter à l'écran d'accueil</strong> / <strong>Installer l'application</strong>.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "DuoTasks — Shared Daily List",
+  "short_name": "DuoTasks",
+  "description": "Todoist-style shared daily task and grocery list for two phones (iPhone & Android).",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf9f7",
+  "theme_color": "#dc4c3e",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
