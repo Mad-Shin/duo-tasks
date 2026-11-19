@@ -264,8 +264,8 @@
         </div>
       </section>
 
-      <!-- SECTION: COMPTE JOINT REVOLUT (Always last on page) -->
-      <section id="sec-budget" class="section-panel">
+      <!-- SECTION: COMPTE JOINT REVOLUT (Hidden until real Revolut figures are available) -->
+      <section id="sec-budget" class="section-panel hidden">
         <div class="quiet-section-header">
           <h2>Compte joint</h2>
           <button type="button" class="budget-cfg-btn" id="openMacrodroidBtn" title="Configuration MacroDroid Android">
@@ -433,7 +433,7 @@
         </div>
 
         <div class="drawer-footer">
-          <span></span>
+          <button type="button" class="btn-text" id="openMacrodroidFromSettingsBtn">Compte joint (MacroDroid)</button>
           <button type="submit" class="btn-add">Enregistrer</button>
         </div>
       </form>
@@ -575,7 +575,7 @@
       </span>
       <span class="fab-label">Courses</span>
     </button>
-    <button type="button" class="fab-pill" data-dock-target="sec-budget">
+    <button type="button" class="fab-pill hidden" id="dockBudgetBtn" data-dock-target="sec-budget">
       <span class="fab-ico-wrap" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
       </span>

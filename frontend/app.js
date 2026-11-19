@@ -134,6 +134,10 @@ const els = {
   toastContainer: document.getElementById("toastContainer"),
 
   // Joint Account Budget (#sec-budget + Modals)
+  appShell: document.querySelector(".app-shell"),
+  secBudget: document.getElementById("sec-budget"),
+  dockBudgetBtn: document.getElementById("dockBudgetBtn"),
+  openMacrodroidFromSettingsBtn: document.getElementById("openMacrodroidFromSettingsBtn"),
   budgetCard: document.getElementById("budgetCard"),
   budgetPinGate: document.getElementById("budgetPinGate"),
   budgetPinForm: document.getElementById("budgetPinForm"),
@@ -488,6 +492,9 @@ async function refreshBudget() {
 
 function renderBudget() {
   if (state.budgetLocked) {
+    els.secBudget.classList.add("hidden");
+    els.dockBudgetBtn.classList.add("hidden");
+    if (els.appShell) els.appShell.classList.remove("has-budget");
     els.budgetPinGate.classList.remove("hidden");
     els.budgetCardBody.classList.add("hidden");
     return;
@@ -499,7 +506,15 @@ function renderBudget() {
   const b = state.budget;
   if (!b) return;
 
+  const txs = Array.isArray(b.transactions) ? b.transactions : [];
   const bal = Number(b.balance_cents || 0);
+  const hasRealFigures = bal !== 0 || txs.length > 0;
+
+  // Keep Compte Joint section & 4th dock button hidden until real Revolut figures arrive
+  els.secBudget.classList.toggle("hidden", !hasRealFigures);
+  els.dockBudgetBtn.classList.toggle("hidden", !hasRealFigures);
+  if (els.appShell) els.appShell.classList.toggle("has-budget", hasRealFigures);
+
   els.budgetBalanceValue.textContent = formatCentsFr(bal, false);
   els.budgetBalanceValue.classList.toggle("negative", bal < 0);
   els.budgetWebhookDot.classList.toggle("live", Boolean(b.webhook_configured));
@@ -520,7 +535,6 @@ function renderBudget() {
     els.budgetLastOpLine.textContent = "Aucune opération enregistrée";
   }
 
-  const txs = Array.isArray(b.transactions) ? b.transactions : [];
   els.budgetDrawerHeading.textContent = `Dernières opérations (${txs.length})`;
   els.budgetDrawerPanel.classList.toggle("open", state.budgetDrawerOpen);
   els.toggleBudgetDrawerBtn.setAttribute("aria-expanded", String(state.budgetDrawerOpen));
@@ -1466,6 +1480,19 @@ els.openMacrodroidBtn.addEventListener("click", () => {
   renderMacrodroidModal();
   els.macrodroidModal.classList.remove("hidden");
 });
+
+if (els.openMacrodroidFromSettingsBtn) {
+  els.openMacrodroidFromSettingsBtn.addEventListener("click", () => {
+    els.profileModal.classList.add("hidden");
+    if (state.budgetLocked) {
+      els.secBudget.classList.remove("hidden");
+      els.secBudget.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    renderMacrodroidModal();
+    els.macrodroidModal.classList.remove("hidden");
+  });
+}
 
 els.closeMacrodroidModalBtn.addEventListener("click", () => els.macrodroidModal.classList.add("hidden"));
 els.macrodroidModal.addEventListener("click", (evt) => {
