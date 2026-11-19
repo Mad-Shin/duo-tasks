@@ -17,6 +17,7 @@ const SVG_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 
 const state = {
   composerMode: "task",
+  carouselSlide: "tasks",
   recurringWho: "me",
   theme: localStorage.getItem("duotasks_theme_v2") || "dark",
   profile: {
@@ -62,6 +63,7 @@ const els = {
   courseComposerCard: document.getElementById("courseComposerCard"),
   form: document.getElementById("quickAddForm"),
   input: document.getElementById("quickAddInput"),
+  recTogglePill: document.getElementById("recTogglePill"),
   taskRecurringCheck: document.getElementById("taskRecurringCheck"),
   taskRecurringAssigneeWrap: document.getElementById("taskRecurringAssigneeWrap"),
   recWhoMe: document.getElementById("recWhoMe"),
@@ -74,6 +76,14 @@ const els = {
   eventLocationInput: document.getElementById("eventLocationInput"),
   courseAddForm: document.getElementById("courseAddForm"),
   courseAddInput: document.getElementById("courseAddInput"),
+
+  // Carousel & Navigation
+  tasksCarousel: document.getElementById("tasksCarousel"),
+  secRecurring: document.getElementById("sec-recurring"),
+  dotTasks: document.getElementById("dotTasks"),
+  dotRecurring: document.getElementById("dotRecurring"),
+  swipeCueBtn: document.getElementById("swipeCueBtn"),
+  swipeCueLabel: document.getElementById("swipeCueLabel"),
 
   // Search & Sections
   toggleSearchBtn: document.getElementById("toggleSearchBtn"),
@@ -89,7 +99,7 @@ const els = {
   resetRoutinesBtn: document.getElementById("resetRoutinesBtn"),
   clearCompletedBtn: document.getElementById("clearCompletedBtn"),
 
-  // Recurring Right Panel
+  // Recurring Split Panel
   laneTitleMe: document.getElementById("laneTitleMe"),
   laneTitleWife: document.getElementById("laneTitleWife"),
   recurringMeList: document.getElementById("recurringMeList"),
@@ -98,10 +108,8 @@ const els = {
   recurringWifeEmpty: document.getElementById("recurringWifeEmpty"),
 
   // Courses & Events Sections
-  coursesCountLabel: document.getElementById("coursesCountLabel"),
   coursesList: document.getElementById("coursesList"),
   coursesEmptyState: document.getElementById("coursesEmptyState"),
-  eventsCountLabel: document.getElementById("eventsCountLabel"),
   eventsList: document.getElementById("eventsList"),
   eventsEmptyState: document.getElementById("eventsEmptyState"),
 
@@ -197,7 +205,36 @@ function applyTheme(theme) {
   localStorage.setItem("duotasks_theme_v2", theme);
 }
 
-function setComposerMode(mode) {
+function syncRecurringToggleUI() {
+  const checked = els.taskRecurringCheck.checked;
+  els.recTogglePill.classList.toggle("active", checked);
+  els.taskRecurringAssigneeWrap.classList.toggle("hidden", !checked);
+}
+
+function scrollToCarouselSlide(slide) {
+  if (!els.tasksCarousel) return;
+  const targetLeft = slide === "recurring" ? els.tasksCarousel.scrollWidth : 0;
+  els.tasksCarousel.scrollTo({ left: targetLeft, behavior: "smooth" });
+}
+
+function syncCarouselUI() {
+  if (!els.tasksCarousel) return;
+  const threshold = Math.max(40, els.tasksCarousel.clientWidth * 0.35);
+  const isRecurring = els.tasksCarousel.scrollLeft > threshold;
+  const isExpanding = els.tasksCarousel.scrollLeft > 24;
+  state.carouselSlide = isRecurring ? "recurring" : "tasks";
+  els.dotTasks.classList.toggle("active", !isRecurring);
+  els.dotRecurring.classList.toggle("active", isRecurring);
+  els.swipeCueBtn.classList.toggle("is-back", isRecurring);
+  els.swipeCueLabel.textContent = isRecurring ? "Tâches" : "Récurrentes";
+  els.swipeCueBtn.setAttribute(
+    "aria-label",
+    isRecurring ? "Revenir aux tâches" : "Glisser vers les tâches récurrentes"
+  );
+  els.secRecurring.classList.toggle("in-view", isExpanding);
+}
+
+function setComposerMode(mode, shouldFocus = true) {
   state.composerMode = mode;
   els.modeTaskBtn.classList.toggle("active", mode === "task");
   els.modeEventBtn.classList.toggle("active", mode === "event");
@@ -206,17 +243,22 @@ function setComposerMode(mode) {
   els.eventComposerCard.classList.toggle("hidden", mode !== "event");
   els.courseComposerCard.classList.toggle("hidden", mode !== "courses");
 
-  document.querySelectorAll(".dock-btn").forEach((btn) => {
+  document.querySelectorAll(".fab-pill").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.dockMode === mode);
   });
 
-  if (mode === "event") {
-    if (!els.eventDateInput.value) els.eventDateInput.value = nextWeekdayDate(6);
-    els.eventTitleInput.focus();
-  } else if (mode === "courses") {
-    els.courseAddInput.focus();
-  } else {
-    els.input.focus();
+  if (mode === "event" && !els.eventDateInput.value) {
+    els.eventDateInput.value = nextWeekdayDate(6);
+  }
+
+  if (shouldFocus) {
+    if (mode === "event") {
+      els.eventTitleInput.focus();
+    } else if (mode === "courses") {
+      els.courseAddInput.focus();
+    } else {
+      els.input.focus();
+    }
   }
 }
 
@@ -235,10 +277,12 @@ function renderProfileLabels() {
 }
 
 function renderPresetButtons() {
-  const presets = Array.isArray(state.profile.preset_tasks) && state.profile.preset_tasks.length > 0
+  const presets = Array.isArray(state.profile.preset_tasks)
     ? state.profile.preset_tasks
     : DEFAULT_PRESETS;
   els.presetTasksRow.innerHTML = "";
+  els.presetTasksRow.classList.toggle("hidden", presets.length === 0);
+
   presets.forEach((text) => {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -249,7 +293,7 @@ function renderPresetButtons() {
       els.input.value = text;
       const isRec = /\b(?:hebdo|weekly|daily|tous les jours|quotidien|mensuel|monthly)\b/i.test(text);
       els.taskRecurringCheck.checked = isRec;
-      els.taskRecurringAssigneeWrap.classList.toggle("hidden", !isRec);
+      syncRecurringToggleUI();
       els.input.focus();
       const len = els.input.value.length;
       els.input.setSelectionRange(len, len);
@@ -325,7 +369,7 @@ function renderAllSections() {
 
   els.taskCounter.textContent = `${active.length} à faire`;
 
-  // 1. Main Flat Tasks
+  // 1. Main Flat Tasks (no temporal headers)
   els.activeList.innerHTML = "";
   if (regularTasks.length === 0) {
     els.emptyState.classList.remove("hidden");
@@ -334,26 +378,24 @@ function renderAllSections() {
     regularTasks.forEach((task) => els.activeList.appendChild(createListRow(task)));
   }
 
-  // 2. Recurring Carousel Split (Valentin vs Lisa)
+  // 2. Recurring Split Slide (Valentin vs Lisa vertical rows)
   const recMe = recurringTasks.filter((t) => t.assignee !== "wife");
   const recWife = recurringTasks.filter((t) => t.assignee === "wife");
 
   els.recurringMeList.innerHTML = "";
   els.recurringMeEmpty.classList.toggle("hidden", recMe.length > 0);
-  recMe.forEach((t) => els.recurringMeList.appendChild(createRecurringCard(t)));
+  recMe.forEach((t) => els.recurringMeList.appendChild(createRecurringRow(t)));
 
   els.recurringWifeList.innerHTML = "";
   els.recurringWifeEmpty.classList.toggle("hidden", recWife.length > 0);
-  recWife.forEach((t) => els.recurringWifeList.appendChild(createRecurringCard(t)));
+  recWife.forEach((t) => els.recurringWifeList.appendChild(createRecurringRow(t)));
 
-  // 3. Courses Section
-  els.coursesCountLabel.textContent = String(courseTasks.length);
+  // 3. Courses Section (empty by default)
   els.coursesList.innerHTML = "";
   els.coursesEmptyState.classList.toggle("hidden", courseTasks.length > 0);
   courseTasks.forEach((task) => els.coursesList.appendChild(createListRow(task)));
 
-  // 4. Events Section (always at the bottom)
-  els.eventsCountLabel.textContent = String(eventTasks.length);
+  // 4. Events Section (always at bottom)
   els.eventsList.innerHTML = "";
   els.eventsEmptyState.classList.toggle("hidden", eventTasks.length > 0);
   eventTasks.forEach((task) => els.eventsList.appendChild(createListRow(task)));
@@ -370,12 +412,9 @@ function renderAllSections() {
   els.resetRoutinesBtn.classList.toggle("hidden", !hasDoneRecurring);
 }
 
-function createRecurringCard(task) {
-  const card = document.createElement("div");
-  card.className = "rec-card";
-
-  const top = document.createElement("div");
-  top.className = "rec-card-top";
+function createRecurringRow(task) {
+  const li = document.createElement("li");
+  li.className = "task-item";
 
   const checkBtn = document.createElement("button");
   checkBtn.type = "button";
@@ -386,23 +425,24 @@ function createRecurringCard(task) {
     toggleTask(task);
   });
 
+  const content = document.createElement("div");
+  content.className = "task-content";
+  content.addEventListener("click", () => openTaskDrawer(task));
+
   const title = document.createElement("div");
-  title.className = "rec-card-title";
+  title.className = "task-title";
   title.textContent = task.title;
-  title.addEventListener("click", () => openTaskDrawer(task));
+  content.appendChild(title);
 
-  top.appendChild(checkBtn);
-  top.appendChild(title);
-
-  const foot = document.createElement("div");
-  foot.className = "rec-card-foot";
-
-  const rule = document.createElement("span");
-  rule.className = "rec-rule-badge";
-  rule.textContent = RECURRENCE_LABELS[task.recurrence_rule] || "Récurrent";
+  const metaLine = document.createElement("div");
+  metaLine.className = "task-meta-line";
+  const ruleSpan = document.createElement("span");
+  ruleSpan.textContent = RECURRENCE_LABELS[task.recurrence_rule] || "Récurrent";
+  metaLine.appendChild(ruleSpan);
+  content.appendChild(metaLine);
 
   const actions = document.createElement("div");
-  actions.className = "rec-card-actions";
+  actions.className = "task-actions-col";
 
   const swapBtn = document.createElement("button");
   swapBtn.type = "button";
@@ -431,12 +471,11 @@ function createRecurringCard(task) {
 
   actions.appendChild(swapBtn);
   actions.appendChild(delBtn);
-  foot.appendChild(rule);
-  foot.appendChild(actions);
 
-  card.appendChild(top);
-  card.appendChild(foot);
-  return card;
+  li.appendChild(checkBtn);
+  li.appendChild(content);
+  li.appendChild(actions);
+  return li;
 }
 
 function createListRow(task) {
@@ -712,15 +751,42 @@ els.themeToggleBtn.addEventListener("click", () => {
   applyTheme(state.theme === "dark" ? "light" : "dark");
 });
 
-els.modeTaskBtn.addEventListener("click", () => setComposerMode("task"));
-els.modeEventBtn.addEventListener("click", () => setComposerMode("event"));
-els.modeCourseBtn.addEventListener("click", () => setComposerMode("courses"));
+els.modeTaskBtn.addEventListener("click", () => setComposerMode("task", true));
+els.modeEventBtn.addEventListener("click", () => setComposerMode("event", true));
+els.modeCourseBtn.addEventListener("click", () => setComposerMode("courses", true));
 
-document.querySelectorAll(".dock-btn").forEach((btn) => {
+// Carousel Swipe & Tap Controls
+els.tasksCarousel.addEventListener("scroll", syncCarouselUI, { passive: true });
+els.dotTasks.addEventListener("click", () => scrollToCarouselSlide("tasks"));
+els.dotRecurring.addEventListener("click", () => scrollToCarouselSlide("recurring"));
+els.swipeCueBtn.addEventListener("click", () => {
+  scrollToCarouselSlide(state.carouselSlide === "tasks" ? "recurring" : "tasks");
+});
+
+// Tapping the peeking slice of Récurrentes slides it smoothly into view
+els.secRecurring.addEventListener(
+  "click",
+  (evt) => {
+    if (state.carouselSlide === "tasks") {
+      evt.preventDefault();
+      evt.stopPropagation();
+      scrollToCarouselSlide("recurring");
+    }
+  },
+  true
+);
+
+// 3 Floating Bottom-Right Buttons
+document.querySelectorAll(".fab-pill").forEach((btn) => {
   btn.addEventListener("click", () => {
     const mode = btn.dataset.dockMode || "task";
     const targetId = btn.dataset.dockTarget || "sec-tasks";
-    setComposerMode(mode);
+    setComposerMode(mode, false);
+    if (targetId === "sec-tasks") {
+      scrollToCarouselSlide("tasks");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     const targetEl = document.getElementById(targetId);
     if (targetEl) {
       targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -728,10 +794,8 @@ document.querySelectorAll(".dock-btn").forEach((btn) => {
   });
 });
 
-// Recurring checkbox in Task Composer
-els.taskRecurringCheck.addEventListener("change", () => {
-  els.taskRecurringAssigneeWrap.classList.toggle("hidden", !els.taskRecurringCheck.checked);
-});
+// Bespoke Recurring Toggle Pill
+els.taskRecurringCheck.addEventListener("change", syncRecurringToggleUI);
 
 document.querySelectorAll(".rec-who-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -748,8 +812,9 @@ els.form.addEventListener("submit", async (evt) => {
   const raw = els.input.value.trim();
   if (!raw) return;
 
+  const isRecurring = els.taskRecurringCheck.checked;
   const body = { raw_input: raw, item_type: "task" };
-  if (els.taskRecurringCheck.checked) {
+  if (isRecurring) {
     body.recurring = true;
     body.recurrence_rule = /\b(?:tous les jours|quotidien|daily)\b/i.test(raw) ? "daily" : "weekly";
     body.assignee = state.recurringWho;
@@ -757,11 +822,14 @@ els.form.addEventListener("submit", async (evt) => {
 
   els.input.value = "";
   els.taskRecurringCheck.checked = false;
-  els.taskRecurringAssigneeWrap.classList.add("hidden");
+  syncRecurringToggleUI();
 
   try {
     await apiJson("/api/tasks", { method: "POST", body: JSON.stringify(body) });
     await refreshAll();
+    if (isRecurring) {
+      scrollToCarouselSlide("recurring");
+    }
   } catch (err) {
     console.error(err);
   }
@@ -853,7 +921,9 @@ els.eventAddForm.addEventListener("submit", async (evt) => {
 els.editProfileBtn.addEventListener("click", () => {
   els.profMeName.value = state.profile.me_name || "Valentin";
   els.profWifeName.value = state.profile.wife_name || "Lisa";
-  state.draftPresets = [...(state.profile.preset_tasks || DEFAULT_PRESETS)];
+  state.draftPresets = Array.isArray(state.profile.preset_tasks)
+    ? [...state.profile.preset_tasks]
+    : [...DEFAULT_PRESETS];
   renderSettingsPresets();
   els.profileModal.classList.remove("hidden");
 });
@@ -985,6 +1055,8 @@ if ("serviceWorker" in navigator) {
 }
 
 applyTheme(state.theme);
+syncRecurringToggleUI();
+syncCarouselUI();
 refreshAll();
 connectWebSocket();
 refreshHealth();

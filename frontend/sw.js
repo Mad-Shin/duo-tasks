@@ -1,4 +1,4 @@
-const CACHE_NAME = "duotasks-shell-v19";
+const CACHE_NAME = "duotasks-shell-v21";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
