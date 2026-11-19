@@ -22,10 +22,7 @@
       <div class="brand">
         <img src="/icon.svg" alt="DuoTasks" class="brand-icon" />
         <div class="brand-text">
-          <div class="title-row">
-            <h1>DuoTasks</h1>
-            <span class="jp-whisper" aria-hidden="true">デュオ</span>
-          </div>
+          <h1>DuoTasks</h1>
           <div class="status-line">
             <span class="sync-dot" id="syncDot"></span>
             <span class="subtitle" id="taskCounter">0 à faire</span>
@@ -196,19 +193,7 @@
           <input type="text" id="editTitle" maxlength="280" required />
         </label>
 
-        <label class="field-group">
-          <span>Notes</span>
-          <textarea id="editNotes" rows="2" maxlength="2000" placeholder="Ajouter une note…"></textarea>
-        </label>
-
         <div class="field-grid">
-          <label class="field-group">
-            <span>Type</span>
-            <select id="editItemType">
-              <option value="task">Tâche</option>
-              <option value="event">Événement</option>
-            </select>
-          </label>
           <label class="field-group">
             <span>Pour</span>
             <select id="editAssignee">
@@ -218,51 +203,15 @@
             </select>
           </label>
           <label class="field-group">
-            <span>Tag</span>
+            <span>Catégorie</span>
             <select id="editCategory">
-              <option value="inbox">inbox</option>
-              <option value="maison">maison</option>
-              <option value="courses">courses</option>
-              <option value="date">date</option>
-              <option value="admin">admin</option>
-              <option value="daily">daily</option>
-              <option value="weekend">weekend</option>
+              <option value="inbox">Général</option>
+              <option value="maison">Maison</option>
+              <option value="courses">Courses</option>
+              <option value="date">Sortie</option>
+              <option value="admin">Admin</option>
             </select>
           </label>
-          <label class="field-group">
-            <span>Priorité</span>
-            <select id="editPriority">
-              <option value="1">Haute (P1)</option>
-              <option value="2">Moyenne (P2)</option>
-              <option value="3">Normale (P3)</option>
-            </select>
-          </label>
-          <label class="field-group">
-            <span>Échéance</span>
-            <select id="editDueLabel">
-              <option value="today">Aujourd'hui</option>
-              <option value="tomorrow">Demain</option>
-              <option value="weekend">Week-end</option>
-              <option value="later">Plus tard</option>
-              <option value="lundi">Lundi</option>
-              <option value="mardi">Mardi</option>
-              <option value="mercredi">Mercredi</option>
-              <option value="jeudi">Jeudi</option>
-              <option value="vendredi">Vendredi</option>
-            </select>
-          </label>
-          <label class="field-group">
-            <span>Répéter</span>
-            <select id="editRecurrence">
-              <option value="none">Jamais</option>
-              <option value="daily">Tous les jours</option>
-              <option value="weekly">Toutes les semaines</option>
-              <option value="monthly">Tous les mois</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="field-grid" id="drawerEventFields">
           <label class="field-group">
             <span>Date</span>
             <input type="date" id="editEventDate" />
@@ -271,9 +220,6 @@
             <span>Heure</span>
             <input type="time" id="editEventTime" />
           </label>
-        </div>
-
-        <div class="field-grid">
           <label class="field-group">
             <span>Lieu</span>
             <input type="text" id="editLocation" maxlength="120" placeholder="Optionnel" />
@@ -284,13 +230,23 @@
           </label>
         </div>
 
-        <div class="subtasks-box">
-          <h4>Sous-tâches / Articles</h4>
-          <ul class="subtask-list" id="drawerSubtaskList"></ul>
-          <div class="composer-row compact">
-            <input type="text" id="newSubtaskInput" placeholder="Ajouter un élément…" maxlength="200" />
-            <button type="button" class="btn-soft" id="addSubtaskBtn">Ajouter</button>
-          </div>
+        <div class="field-grid">
+          <label class="field-group">
+            <span>Répéter</span>
+            <select id="editRecurrence">
+              <option value="none">Jamais</option>
+              <option value="daily">Tous les jours</option>
+              <option value="weekly">Toutes les semaines</option>
+              <option value="monthly">Tous les mois</option>
+            </select>
+          </label>
+          <label class="field-group urgent-toggle-wrap">
+            <span>Priorité</span>
+            <label class="urgent-check">
+              <input type="checkbox" id="editUrgentCheck" />
+              <span>Urgent</span>
+            </label>
+          </label>
         </div>
 
         <div class="drawer-footer">
@@ -354,6 +310,10 @@
   </div>
 
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+  <button type="button" class="mobile-mode-fab" id="mobileModeFab" aria-label="Basculer Tâche / Événement" title="Basculer Tâche / Événement">
+    <span id="mobileFabIcon">📅</span>
+    <span id="mobileFabLabel">Événement</span>
+  </button>
 
   <script src="/app.js"></script>
 </body>

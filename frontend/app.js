@@ -4,6 +4,14 @@ const RECURRENCE_LABELS = {
   monthly: "Mensuel"
 };
 
+const CATEGORY_LABELS = {
+  inbox: "Général",
+  maison: "Maison",
+  courses: "Courses",
+  date: "Sortie",
+  admin: "Admin"
+};
+
 const TEMPORAL_BUCKETS = [
   { key: "today", label: "Aujourd'hui" },
   { key: "tomorrow", label: "Demain" },
@@ -60,6 +68,9 @@ const els = {
   // Mode Switch & Composers
   modeTaskBtn: document.getElementById("modeTaskBtn"),
   modeEventBtn: document.getElementById("modeEventBtn"),
+  mobileModeFab: document.getElementById("mobileModeFab"),
+  mobileFabIcon: document.getElementById("mobileFabIcon"),
+  mobileFabLabel: document.getElementById("mobileFabLabel"),
   taskComposerCard: document.getElementById("taskComposerCard"),
   eventComposerCard: document.getElementById("eventComposerCard"),
   form: document.getElementById("quickAddForm"),
@@ -93,20 +104,14 @@ const els = {
   taskEditForm: document.getElementById("taskEditForm"),
   editTaskId: document.getElementById("editTaskId"),
   editTitle: document.getElementById("editTitle"),
-  editNotes: document.getElementById("editNotes"),
-  editItemType: document.getElementById("editItemType"),
   editAssignee: document.getElementById("editAssignee"),
   editCategory: document.getElementById("editCategory"),
-  editPriority: document.getElementById("editPriority"),
-  editDueLabel: document.getElementById("editDueLabel"),
+  editUrgentCheck: document.getElementById("editUrgentCheck"),
   editRecurrence: document.getElementById("editRecurrence"),
   editEventDate: document.getElementById("editEventDate"),
   editEventTime: document.getElementById("editEventTime"),
   editLocation: document.getElementById("editLocation"),
   editQuantity: document.getElementById("editQuantity"),
-  drawerSubtaskList: document.getElementById("drawerSubtaskList"),
-  newSubtaskInput: document.getElementById("newSubtaskInput"),
-  addSubtaskBtn: document.getElementById("addSubtaskBtn"),
   drawerDeleteBtn: document.getElementById("drawerDeleteBtn"),
   toastContainer: document.getElementById("toastContainer")
 };
@@ -220,6 +225,10 @@ function setComposerMode(mode) {
   els.modeEventBtn.classList.toggle("active", mode === "event");
   els.taskComposerCard.classList.toggle("hidden", mode !== "task");
   els.eventComposerCard.classList.toggle("hidden", mode !== "event");
+  if (els.mobileFabIcon && els.mobileFabLabel) {
+    els.mobileFabIcon.textContent = mode === "task" ? "📅" : "✓";
+    els.mobileFabLabel.textContent = mode === "task" ? "Événement" : "Tâche";
+  }
   if (mode === "event") {
     if (!els.eventDateInput.value) {
       els.eventDateInput.value = nextWeekdayDate(6);
@@ -293,13 +302,6 @@ async function refreshAll() {
   renderProfileLabels();
   renderOneSuggestion();
   renderTasks();
-
-  if (state.editingTaskId !== null) {
-    const fresh = state.allTasks.find((t) => t.id === state.editingTaskId);
-    if (fresh) {
-      renderDrawerSubtasks(fresh);
-    }
-  }
 }
 
 function renderOneSuggestion() {
@@ -399,25 +401,26 @@ function createTaskElement(task) {
     const dateTxt = formatShortFrDate(task.event_date);
     metaParts.push({ text: task.event_time ? `${dateTxt} · ${task.event_time}` : dateTxt, accent: true });
     if (task.location) metaParts.push({ text: task.location, accent: false });
+  } else if (task.event_time) {
+    metaParts.push({ text: task.event_time, accent: true });
   }
   if (task.assignee !== "both") {
     metaParts.push({ text: partnerName(task.assignee), accent: false });
   }
   if (task.category && task.category !== "inbox" && !(task.item_type === "event" && task.category === "date")) {
-    metaParts.push({ text: `#${task.category}`, accent: task.category === "courses" });
+    metaParts.push({ text: CATEGORY_LABELS[task.category] || task.category, accent: task.category === "courses" });
   }
   if (task.quantity) {
     metaParts.push({ text: task.quantity, accent: true });
+  }
+  if (task.item_type !== "event" && task.location) {
+    metaParts.push({ text: task.location, accent: false });
   }
   if (task.item_type !== "event" && task.due_label && task.due_label !== "today") {
     metaParts.push({ text: task.due_label, accent: task.due_label === "tomorrow" });
   }
   if (task.recurring) {
     metaParts.push({ text: `↻ ${RECURRENCE_LABELS[task.recurrence_rule] || "Quotidien"}`, accent: false });
-  }
-  if (task.subtasks && task.subtasks.length > 0) {
-    const doneSub = task.subtasks.filter((s) => s.done).length;
-    metaParts.push({ text: `${doneSub}/${task.subtasks.length}`, accent: false });
   }
 
   if (metaParts.length > 0) {
@@ -459,76 +462,6 @@ function createTaskElement(task) {
     syncBar.appendChild(gLink);
     syncBar.appendChild(aLink);
     content.appendChild(syncBar);
-  }
-
-  // Inline checklist for the living Courses task (or any active task with subtasks)
-  const hasInlineChecklist = !task.completed && (task.category === "courses" || (task.subtasks && task.subtasks.length > 0));
-  if (hasInlineChecklist) {
-    const checklist = document.createElement("div");
-    checklist.className = "inline-checklist";
-    checklist.addEventListener("click", (e) => e.stopPropagation());
-
-    (task.subtasks || []).forEach((sub) => {
-      const row = document.createElement("div");
-      row.className = `inline-sub-row${sub.done ? " done" : ""}`;
-
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = Boolean(sub.done);
-      cb.addEventListener("change", async () => {
-        await apiJson(`/api/tasks/${task.id}/subtasks/${sub.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ done: cb.checked })
-        });
-        await refreshAll();
-      });
-
-      const lbl = document.createElement("span");
-      lbl.textContent = sub.text;
-
-      const del = document.createElement("button");
-      del.type = "button";
-      del.className = "inline-sub-del";
-      del.title = "Retirer";
-      del.textContent = "✕";
-      del.addEventListener("click", async () => {
-        await apiJson(`/api/tasks/${task.id}/subtasks/${sub.id}`, { method: "DELETE" });
-        await refreshAll();
-      });
-
-      row.appendChild(cb);
-      row.appendChild(lbl);
-      row.appendChild(del);
-      checklist.appendChild(row);
-    });
-
-    if (task.category === "courses") {
-      const addForm = document.createElement("form");
-      addForm.className = "inline-sub-add";
-      const inp = document.createElement("input");
-      inp.type = "text";
-      inp.placeholder = "+ Ajouter un article…";
-      inp.maxLength = 200;
-      const addBtn = document.createElement("button");
-      addBtn.type = "submit";
-      addBtn.textContent = "+";
-      addForm.appendChild(inp);
-      addForm.appendChild(addBtn);
-      addForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const text = inp.value.trim();
-        if (!text) return;
-        inp.value = "";
-        await apiJson(`/api/tasks/${task.id}/subtasks`, {
-          method: "POST",
-          body: JSON.stringify({ text })
-        });
-        await refreshAll();
-      });
-      checklist.appendChild(addForm);
-    }
-
-    content.appendChild(checklist);
   }
 
   const actionsCol = document.createElement("div");
@@ -660,67 +593,22 @@ function openTaskDrawer(task) {
   state.editingTaskId = task.id;
   els.editTaskId.value = String(task.id);
   els.editTitle.value = task.title;
-  els.editNotes.value = task.notes || "";
-  els.editItemType.value = task.item_type || "task";
   els.editAssignee.value = task.assignee || "both";
   const cat = task.category || "inbox";
   ensureSelectOption(els.editCategory, cat);
   els.editCategory.value = cat;
-  els.editPriority.value = String(task.priority || 3);
-  const due = task.due_label || "today";
-  ensureSelectOption(els.editDueLabel, due);
-  els.editDueLabel.value = due;
+  els.editUrgentCheck.checked = Number(task.priority) === 1;
   els.editRecurrence.value = task.recurrence_rule || (task.recurring ? "daily" : "none");
-  els.editEventDate.value = task.event_date || "";
+  els.editEventDate.value = task.event_date || task.due_date || "";
   els.editEventTime.value = task.event_time || "";
   els.editLocation.value = task.location || "";
   els.editQuantity.value = task.quantity || "";
-  renderDrawerSubtasks(task);
   els.taskDrawer.classList.remove("hidden");
 }
 
 function closeTaskDrawer() {
   state.editingTaskId = null;
   els.taskDrawer.classList.add("hidden");
-}
-
-function renderDrawerSubtasks(task) {
-  els.drawerSubtaskList.innerHTML = "";
-  (task.subtasks || []).forEach((sub) => {
-    const li = document.createElement("li");
-    li.className = `subtask-item${sub.done ? " done" : ""}`;
-
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = Boolean(sub.done);
-    cb.addEventListener("change", async () => {
-      const updated = await apiJson(`/api/tasks/${task.id}/subtasks/${sub.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ done: cb.checked })
-      });
-      renderDrawerSubtasks(updated);
-      await refreshAll();
-    });
-
-    const span = document.createElement("span");
-    span.className = "subtask-text";
-    span.textContent = sub.text;
-
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "btn-close";
-    del.textContent = "✕";
-    del.addEventListener("click", async () => {
-      const updated = await apiJson(`/api/tasks/${task.id}/subtasks/${sub.id}`, { method: "DELETE" });
-      renderDrawerSubtasks(updated);
-      await refreshAll();
-    });
-
-    li.appendChild(cb);
-    li.appendChild(span);
-    li.appendChild(del);
-    els.drawerSubtaskList.appendChild(li);
-  });
 }
 
 async function refreshHealth() {
@@ -784,6 +672,11 @@ els.themeToggleBtn.addEventListener("click", () => {
 
 els.modeTaskBtn.addEventListener("click", () => setComposerMode("task"));
 els.modeEventBtn.addEventListener("click", () => setComposerMode("event"));
+if (els.mobileModeFab) {
+  els.mobileModeFab.addEventListener("click", () => {
+    setComposerMode(state.composerMode === "task" ? "event" : "task");
+  });
+}
 
 // Event template pills & quick date pills
 document.querySelectorAll(".preset-pill").forEach((pill) => {
@@ -914,12 +807,11 @@ els.grocerySuggestionBtn.addEventListener("click", async () => {
     await apiJson("/api/tasks", {
       method: "POST",
       body: JSON.stringify({
-        raw_input: "Courses #courses @both",
-        category: "courses",
-        subtasks: [{ id: 1, text: itemText, done: false }]
+        raw_input: `Courses : ${itemText} #courses @both`,
+        category: "courses"
       })
     });
-    showToast("Liste Courses créée");
+    showToast("Courses ajoutées");
     await refreshAll();
   } catch (err) {
     console.error(err);
@@ -986,18 +878,18 @@ els.taskDrawer.addEventListener("click", (evt) => {
 els.taskEditForm.addEventListener("submit", async (evt) => {
   evt.preventDefault();
   const id = Number(els.editTaskId.value);
+  const pickedDate = els.editEventDate.value;
   await apiJson(`/api/tasks/${id}`, {
     method: "PATCH",
     body: JSON.stringify({
       title: els.editTitle.value.trim(),
-      notes: els.editNotes.value.trim(),
-      item_type: els.editItemType.value,
       assignee: els.editAssignee.value,
       category: els.editCategory.value,
-      priority: Number(els.editPriority.value),
-      due_label: els.editDueLabel.value,
+      priority: els.editUrgentCheck.checked ? 1 : 3,
+      due_label: pickedDate ? inferDueLabelFromIso(pickedDate) : "today",
+      due_date: pickedDate || "",
       recurrence_rule: els.editRecurrence.value,
-      event_date: els.editEventDate.value,
+      event_date: pickedDate || "",
       event_time: els.editEventTime.value,
       location: els.editLocation.value.trim(),
       quantity: els.editQuantity.value.trim()
@@ -1006,26 +898,6 @@ els.taskEditForm.addEventListener("submit", async (evt) => {
   closeTaskDrawer();
   showToast("Enregistré");
   await refreshAll();
-});
-
-els.addSubtaskBtn.addEventListener("click", async () => {
-  const id = Number(els.editTaskId.value);
-  const text = els.newSubtaskInput.value.trim();
-  if (!text) return;
-  els.newSubtaskInput.value = "";
-  const updated = await apiJson(`/api/tasks/${id}/subtasks`, {
-    method: "POST",
-    body: JSON.stringify({ text })
-  });
-  renderDrawerSubtasks(updated);
-  await refreshAll();
-});
-
-els.newSubtaskInput.addEventListener("keydown", (evt) => {
-  if (evt.key === "Enter") {
-    evt.preventDefault();
-    els.addSubtaskBtn.click();
-  }
 });
 
 els.drawerDeleteBtn.addEventListener("click", async () => {
