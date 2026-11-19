@@ -7,7 +7,7 @@
 
   <!-- PWA & Home Screen App Meta (Android + iPhone Safari) -->
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#0d0e12" />
+  <meta name="theme-color" content="#090b10" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="DuoTasks" />
@@ -22,7 +22,10 @@
       <div class="brand">
         <img src="/icon.svg" alt="DuoTasks" class="brand-icon" />
         <div class="brand-text">
-          <h1>DuoTasks</h1>
+          <div class="title-row">
+            <h1>DuoTasks</h1>
+            <span class="jp-whisper" aria-hidden="true">デュオ</span>
+          </div>
           <div class="status-line">
             <span class="sync-dot" id="syncDot"></span>
             <span class="subtitle" id="taskCounter">0 à faire</span>
@@ -66,19 +69,19 @@
             <input
               type="text"
               id="quickAddInput"
-              placeholder="Ajouter une tâche… (ex: Réserver resto @lisa)"
+              placeholder="Ajouter une tâche…"
               maxlength="280"
               required
             />
             <button type="submit" class="btn-add">Ajouter</button>
           </div>
 
-          <div class="preset-tasks-row" id="presetTasksRow" aria-label="Tâches récurrentes rapides">
-            <button type="button" class="preset-task-pill" data-title="Deep clean salle de bain" data-rule="weekly">🛁 Deep clean salle de bain</button>
-            <button type="button" class="preset-task-pill" data-title="Deep clean cuisine" data-rule="weekly">🍳 Deep clean cuisine</button>
-            <button type="button" class="preset-task-pill" data-title="Aspirateur &amp; sols" data-rule="weekly">🧹 Aspirateur &amp; sols</button>
-            <button type="button" class="preset-task-pill" data-title="Lessive &amp; draps" data-rule="weekly">🧺 Lessive &amp; draps</button>
-            <button type="button" class="preset-task-pill" data-title="Sortir les poubelles" data-rule="daily">🗑️ Poubelles</button>
+          <div class="preset-tasks-row" id="presetTasksRow" aria-label="Tâches récurrentes pré-remplies">
+            <button type="button" class="preset-task-pill" data-prefill="Deep clean salle de bain hebdo #maison">Deep clean salle de bain</button>
+            <button type="button" class="preset-task-pill" data-prefill="Deep clean cuisine hebdo #maison">Deep clean cuisine</button>
+            <button type="button" class="preset-task-pill" data-prefill="Aspirateur &amp; sols hebdo #maison">Aspirateur &amp; sols</button>
+            <button type="button" class="preset-task-pill" data-prefill="Lessive &amp; draps hebdo #maison">Lessive &amp; draps</button>
+            <button type="button" class="preset-task-pill" data-prefill="Sortir les poubelles tous les jours #maison">Poubelles</button>
           </div>
         </form>
       </div>
@@ -87,15 +90,15 @@
       <div class="composer-card hidden" id="eventComposerCard">
         <form id="eventAddForm" autocomplete="off">
           <div class="event-presets" aria-label="Modèles rapides">
-            <button type="button" class="preset-pill" data-preset="Mariage ">💍 Mariage</button>
-            <button type="button" class="preset-pill" data-preset="Dîner ">🍽️ Dîner</button>
-            <button type="button" class="preset-pill" data-preset="Soirée ">🥂 Soirée</button>
-            <button type="button" class="preset-pill" data-preset="Week-end ">✈️ Week-end</button>
-            <button type="button" class="preset-pill" data-preset="Anniversaire ">🎂 Anniversaire</button>
+            <button type="button" class="preset-pill" data-preset="Mariage ">Mariage</button>
+            <button type="button" class="preset-pill" data-preset="Dîner ">Dîner</button>
+            <button type="button" class="preset-pill" data-preset="Soirée ">Soirée</button>
+            <button type="button" class="preset-pill" data-preset="Week-end ">Week-end</button>
+            <button type="button" class="preset-pill" data-preset="Anniversaire ">Anniversaire</button>
           </div>
 
           <div class="composer-row">
-            <span class="composer-plus">📅</span>
+            <span class="composer-plus">+</span>
             <input
               type="text"
               id="eventTitleInput"
@@ -151,12 +154,20 @@
       <input type="search" id="taskSearchInput" placeholder="Rechercher une tâche, un événement ou un lieu…" />
     </div>
 
-    <!-- Single Unified List -->
+    <!-- Single Unified List with Subtle Perched Cat Silhouette -->
     <main class="task-sections">
-      <div class="surface-list-wrap">
-        <ul class="task-list" id="activeTaskList"></ul>
-        <div class="empty-state hidden" id="emptyState">
-          Rien à faire. Ajoutez une tâche ou un événement juste au-dessus.
+      <div class="list-stage">
+        <svg class="perched-cat" viewBox="0 0 88 40" fill="none" aria-hidden="true">
+          <path d="M18 39c0-9 6-16 14-18l3-10 7 6c3-1 7-1 10 0l7-6 3 10c7 2 11 9 11 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M18 39c-7 0-12-4-12-9 0-3 2-6 5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M39 27c1.5 1.5 3.5 1.5 5 0M51 27c1.5 1.5 3.5 1.5 5 0" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+
+        <div class="surface-list-wrap">
+          <ul class="task-list" id="activeTaskList"></ul>
+          <div class="empty-state hidden" id="emptyState">
+            Rien à faire ce soir. Ajoutez une tâche ci-dessus.
+          </div>
         </div>
       </div>
 

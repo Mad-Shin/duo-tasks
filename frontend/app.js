@@ -875,33 +875,15 @@ els.profileForm.addEventListener("submit", async (evt) => {
   }
 });
 
-// 1-Tap Pre-Written Recurring Task Buttons
+// 1-Tap Pre-Written Recurring Task Buttons (pre-fills input for quick adjustment)
 document.querySelectorAll(".preset-task-pill").forEach((btn) => {
-  btn.addEventListener("click", async () => {
-    const title = btn.dataset.title || "";
-    const rule = btn.dataset.rule || "weekly";
-    if (!title) return;
-    try {
-      const created = await apiJson("/api/tasks", {
-        method: "POST",
-        body: JSON.stringify({
-          raw_input: title,
-          assignee: "both",
-          category: "maison",
-          priority: 2,
-          due_label: "today",
-          recurring: true,
-          recurrence_rule: rule
-        })
-      });
-      showToast(`Ajoutée : ${title}`, "Annuler", async () => {
-        await apiJson(`/api/tasks/${created.id}`, { method: "DELETE" });
-        await refreshAll();
-      });
-      await refreshAll();
-    } catch (err) {
-      console.error(err);
-    }
+  btn.addEventListener("click", () => {
+    const prefill = btn.dataset.prefill || "";
+    if (!prefill) return;
+    els.input.value = prefill;
+    els.input.focus();
+    const len = els.input.value.length;
+    els.input.setSelectionRange(len, len);
   });
 });
 
