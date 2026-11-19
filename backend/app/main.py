@@ -56,9 +56,11 @@ class ConnectionManager:
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
 
-    async def broadcast(self, payload: dict[str, Any]) -> None:
+    async def broadcast(self, payload: dict[str, Any], exclude: WebSocket | None = None) -> None:
         stale: list[WebSocket] = []
         for connection in list(self.active_connections):
+            if exclude is not None and connection is exclude:
+                continue
             try:
                 await connection.send_json(payload)
             except Exception:
@@ -91,7 +93,7 @@ def _fetch_task_by_id(conn: Any, mode: str, task_id: int) -> dict[str, Any] | No
     ph = placeholder(mode)
     cur = conn.cursor()
     cur.execute(
-        f"SELECT id, title, raw_input, assignee, category, priority, due_label, completed, created_at FROM tasks WHERE id = {ph}",
+        f"SELECT id, title, raw_input, assignee, category, priority, due_label, completed, recurring, created_at FROM tasks WHERE id = {ph}",
         (task_id,),
     )
     row = cur.fetchone()
@@ -100,9 +102,13 @@ def _fetch_task_by_id(conn: Any, mode: str, task_id: int) -> dict[str, Any] | No
 
 
 @app.get("/api/health")
-def health_check() -> dict[str, str]:
+def health_check() -> dict[str, Any]:
     ensure_db_ready()
-    return {"status": "ok", "db_mode": get_db_mode()}
+    return {
+        "status": "ok",
+        "db_mode": get_db_mode(),
+        "connected_devices": len(manager.active_connections),
+    }
 
 
 @app.post("/api/parse", response_model=ParsePreviewOut)
@@ -136,7 +142,7 @@ def list_tasks(
 
         where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         sql = (
-            "SELECT id, title, raw_input, assignee, category, priority, due_label, completed, created_at "
+            "SELECT id, title, raw_input, assignee, category, priority, due_label, completed, recurring, created_at "
             f"FROM tasks {where_sql} ORDER BY completed ASC, priority ASC, id DESC"
         )
         cur = conn.cursor()
@@ -155,6 +161,7 @@ async def create_task(payload: TaskCreate) -> dict[str, Any]:
     category = normalize_category(payload.category) if payload.category else parsed["category"]
     priority = payload.priority if payload.priority is not None else parsed["priority"]
     due_label = payload.due_label.strip().lower() if payload.due_label else parsed["due_label"]
+    recurring_val = payload.recurring if payload.recurring is not None else bool(parsed.get("recurring", False))
     created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     with get_connection() as (conn, mode):
@@ -168,20 +175,21 @@ async def create_task(payload: TaskCreate) -> dict[str, Any]:
             priority,
             due_label,
             False if mode == "postgres" else 0,
+            bool(recurring_val) if mode == "postgres" else (1 if recurring_val else 0),
             created_at,
         )
         if mode == "postgres":
             cur.execute(
-                f"INSERT INTO tasks (title, raw_input, assignee, category, priority, due_label, completed, created_at) "
-                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}) RETURNING id",
+                f"INSERT INTO tasks (title, raw_input, assignee, category, priority, due_label, completed, recurring, created_at) "
+                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}) RETURNING id",
                 values,
             )
             inserted = cur.fetchone()
             new_id = int(inserted["id"])
         else:
             cur.execute(
-                f"INSERT INTO tasks (title, raw_input, assignee, category, priority, due_label, completed, created_at) "
-                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+                f"INSERT INTO tasks (title, raw_input, assignee, category, priority, due_label, completed, recurring, created_at) "
+                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
                 values,
             )
             new_id = int(cur.lastrowid)
@@ -193,6 +201,20 @@ async def create_task(payload: TaskCreate) -> dict[str, Any]:
 
     await manager.broadcast({"event": "sync", "action": "created", "task_id": new_id})
     return task
+
+
+@app.post("/api/tasks/clear-completed")
+async def clear_completed_tasks() -> dict[str, int]:
+    ensure_db_ready()
+    with get_connection() as (conn, mode):
+        ph = placeholder(mode)
+        comp_val = True if mode == "postgres" else 1
+        cur = conn.cursor()
+        cur.execute(f"DELETE FROM tasks WHERE completed = {ph}", (comp_val,))
+        cleared_count = int(cur.rowcount if cur.rowcount is not None and cur.rowcount >= 0 else 0)
+        cur.close()
+    await manager.broadcast({"event": "sync", "action": "cleared_completed", "cleared_count": cleared_count})
+    return {"cleared_count": cleared_count}
 
 
 @app.patch("/api/tasks/{task_id}", response_model=TaskOut)
@@ -230,6 +252,9 @@ async def update_task(task_id: int, payload: TaskUpdate) -> dict[str, Any]:
         if "due_label" in updates and updates["due_label"] is not None:
             assignments.append(f"due_label = {ph}")
             params.append(updates["due_label"].strip().lower())
+        if "recurring" in updates and updates["recurring"] is not None:
+            assignments.append(f"recurring = {ph}")
+            params.append(bool(updates["recurring"]) if mode == "postgres" else (1 if updates["recurring"] else 0))
 
         if assignments:
             params.append(task_id)
@@ -265,14 +290,20 @@ async def delete_task(task_id: int) -> dict[str, Any]:
 @app.websocket("/ws")
 async def websocket_sync(websocket: WebSocket) -> None:
     await manager.connect(websocket)
+    await manager.broadcast(
+        {"event": "devices", "connected_devices": len(manager.active_connections)},
+        exclude=websocket,
+    )
     try:
         while True:
             # Keep connection alive; ignore client pings or echo ack
             _ = await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+        await manager.broadcast({"event": "devices", "connected_devices": len(manager.active_connections)})
     except Exception:
         manager.disconnect(websocket)
+        await manager.broadcast({"event": "devices", "connected_devices": len(manager.active_connections)})
 
 
 if FRONTEND_DIR.exists():

@@ -43,6 +43,19 @@ class TestQuickAddParser(unittest.TestCase):
         self.assertEqual(parsed_en["category"], "home")
         self.assertEqual(parsed_en["priority"], 2)
         self.assertEqual(parsed_en["due_label"], "weekend")
+        self.assertFalse(parsed_en["recurring"])
+
+    def test_parse_recurring_french_and_english(self) -> None:
+        parsed_fr = parse_quick_add("Sortir le chien tous les jours @me #daily")
+        self.assertEqual(parsed_fr["title"], "Sortir le chien")
+        self.assertEqual(parsed_fr["assignee"], "me")
+        self.assertEqual(parsed_fr["category"], "daily")
+        self.assertTrue(parsed_fr["recurring"])
+
+        parsed_en = parse_quick_add("Take vitamins every day @both")
+        self.assertEqual(parsed_en["title"], "Take vitamins")
+        self.assertEqual(parsed_en["assignee"], "both")
+        self.assertTrue(parsed_en["recurring"])
 
 
 class TestTasksAPIAndPWA(unittest.TestCase):
@@ -65,10 +78,13 @@ class TestTasksAPIAndPWA(unittest.TestCase):
     def test_health_and_parse_preview(self) -> None:
         r_health = self.client.get("/api/health")
         self.assertEqual(r_health.status_code, 200)
-        self.assertEqual(r_health.json()["status"], "ok")
-        self.assertEqual(r_health.json()["db_mode"], "sqlite")
+        health = r_health.json()
+        self.assertEqual(health["status"], "ok")
+        self.assertEqual(health["db_mode"], "sqlite")
+        self.assertIsInstance(health["connected_devices"], int)
+        self.assertEqual(health["connected_devices"], 0)
 
-        r_parse = self.client.post("/api/parse", json={"raw_input": "Pain @me #courses !2 demain"})
+        r_parse = self.client.post("/api/parse", json={"raw_input": "Pain @me #courses !2 demain tous les jours"})
         self.assertEqual(r_parse.status_code, 200)
         data = r_parse.json()
         self.assertEqual(data["title"], "Pain")
@@ -76,6 +92,7 @@ class TestTasksAPIAndPWA(unittest.TestCase):
         self.assertEqual(data["category"], "courses")
         self.assertEqual(data["priority"], 2)
         self.assertEqual(data["due_label"], "tomorrow")
+        self.assertTrue(data["recurring"])
 
     def test_crud_lifecycle_and_filters(self) -> None:
         # Create
@@ -122,8 +139,41 @@ class TestTasksAPIAndPWA(unittest.TestCase):
         r_missing = self.client.patch(f"/api/tasks/{task_id}", json={"completed": False})
         self.assertEqual(r_missing.status_code, 404)
 
+    def test_recurring_persistence_and_clear_completed(self) -> None:
+        r_rec = self.client.post(
+            "/api/tasks",
+            json={"raw_input": "Arroser plantes tous les jours @both #maison"},
+        )
+        self.assertEqual(r_rec.status_code, 201)
+        rec_task = r_rec.json()
+        self.assertTrue(rec_task["recurring"])
+        self.assertEqual(rec_task["title"], "Arroser plantes")
+
+        r_done = self.client.post("/api/tasks", json={"raw_input": "Sortir poubelles @me #maison"})
+        self.assertEqual(r_done.status_code, 201)
+        done_id = r_done.json()["id"]
+
+        r_patch_rec = self.client.patch(f"/api/tasks/{rec_task['id']}", json={"recurring": False})
+        self.assertEqual(r_patch_rec.status_code, 200)
+        self.assertFalse(r_patch_rec.json()["recurring"])
+
+        r_patch_done = self.client.patch(f"/api/tasks/{done_id}", json={"completed": True})
+        self.assertEqual(r_patch_done.status_code, 200)
+
+        r_clear = self.client.post("/api/tasks/clear-completed")
+        self.assertEqual(r_clear.status_code, 200)
+        self.assertEqual(r_clear.json(), {"cleared_count": 1})
+
+        r_remaining = self.client.get("/api/tasks")
+        self.assertEqual(r_remaining.status_code, 200)
+        self.assertEqual(len(r_remaining.json()), 1)
+        self.assertEqual(r_remaining.json()[0]["id"], rec_task["id"])
+
     def test_websocket_receives_sync_broadcast(self) -> None:
         with self.client.websocket_connect("/ws") as ws:
+            health_live = self.client.get("/api/health").json()
+            self.assertEqual(health_live["connected_devices"], 1)
+
             r_post = self.client.post("/api/tasks", json={"raw_input": "Test sync @both #daily"})
             self.assertEqual(r_post.status_code, 201)
             msg = ws.receive_json()

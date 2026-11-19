@@ -36,6 +36,10 @@ DUE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 ASSIGNEE_RE = re.compile(r"(?<!\S)@([a-zA-ZÀ-ÿ0-9_-]+)")
 CATEGORY_RE = re.compile(r"(?<!\S)#([a-zA-ZÀ-ÿ0-9_-]+)")
 PRIORITY_RE = re.compile(r"(?<!\S)!([1-3])(?=\s|$)")
+RECURRING_RE = re.compile(
+    r"(?<!\w)(?:every\s+day|daily|tous\s+les\s+jours|chaque\s+jour|quotidien)(?!\w)",
+    re.IGNORECASE,
+)
 
 
 def normalize_assignee(token: str | None) -> str:
@@ -93,6 +97,11 @@ def parse_quick_add(raw_text: str) -> dict[str, Any]:
             working = pattern.sub("", working)
             break
 
+    recurring = False
+    if RECURRING_RE.search(working):
+        recurring = True
+        working = RECURRING_RE.sub("", working)
+
     clean_title = re.sub(r"\s{2,}", " ", working).strip(" ,;-")
     if not clean_title:
         clean_title = (raw_text or "").strip() or "Untitled task"
@@ -103,4 +112,5 @@ def parse_quick_add(raw_text: str) -> dict[str, Any]:
         "category": category,
         "priority": priority,
         "due_label": due_label,
+        "recurring": recurring,
     }

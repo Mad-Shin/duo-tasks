@@ -18,6 +18,7 @@ class TaskCreate(BaseModel):
     category: Optional[str] = Field(default=None, max_length=40)
     priority: Optional[int] = Field(default=None, ge=1, le=3)
     due_label: Optional[str] = Field(default=None, max_length=40)
+    recurring: Optional[bool] = None
 
 
 class TaskUpdate(BaseModel):
@@ -27,6 +28,7 @@ class TaskUpdate(BaseModel):
     category: Optional[str] = Field(default=None, max_length=40)
     priority: Optional[int] = Field(default=None, ge=1, le=3)
     due_label: Optional[str] = Field(default=None, max_length=40)
+    recurring: Optional[bool] = None
 
 
 class TaskOut(BaseModel):
@@ -38,6 +40,7 @@ class TaskOut(BaseModel):
     priority: int
     due_label: str
     completed: bool
+    recurring: bool = False
     created_at: str
 
 
@@ -51,3 +54,4 @@ class ParsePreviewOut(BaseModel):
     category: str
     priority: int
     due_label: str
+    recurring: bool = False

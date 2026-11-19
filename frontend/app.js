@@ -23,6 +23,8 @@ const els = {
   prevCategory: document.getElementById("prevCategory"),
   prevDue: document.getElementById("prevDue"),
   prevPrio: document.getElementById("prevPrio"),
+  prevRecurring: document.getElementById("prevRecurring"),
+  clearCompletedBtn: document.getElementById("clearCompletedBtn"),
   installHelpBtn: document.getElementById("installHelpBtn"),
   installModal: document.getElementById("installModal"),
   closeModalBtn: document.getElementById("closeModalBtn")
@@ -72,6 +74,7 @@ function renderTasks() {
   completed.forEach((task) => els.completedList.appendChild(createTaskElement(task)));
   els.completedList.classList.toggle("hidden", !state.showCompleted);
   els.completedChevron.textContent = state.showCompleted ? "▾" : "▸";
+  els.clearCompletedBtn.classList.toggle("hidden", completed.length === 0);
 }
 
 function createTaskElement(task) {
@@ -99,6 +102,9 @@ function createTaskElement(task) {
   meta.appendChild(makeChip(task.due_label, "chip-due"));
   if (task.priority < 3) {
     meta.appendChild(makeChip(`P${task.priority}`, "chip-prio"));
+  }
+  if (task.recurring) {
+    meta.appendChild(makeChip("🔁 quotidien", "chip-recurring"));
   }
 
   content.appendChild(title);
@@ -150,6 +156,27 @@ async function deleteTask(taskId) {
   }
 }
 
+async function clearCompletedTasks() {
+  try {
+    await apiJson("/api/tasks/clear-completed", { method: "POST" });
+    await loadTasks();
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function refreshHealth() {
+  try {
+    const health = await apiJson("/api/health");
+    if (els.syncDot.classList.contains("online")) {
+      const count = Math.max(1, health.connected_devices || 1);
+      els.syncText.textContent = `Live (${count})`;
+    }
+  } catch {
+    // Silent fallback when offline
+  }
+}
+
 let previewTimer = null;
 async function updateParsePreview() {
   const raw = els.input.value;
@@ -162,6 +189,7 @@ async function updateParsePreview() {
     els.prevCategory.textContent = `#${parsed.category}`;
     els.prevDue.textContent = parsed.due_label;
     els.prevPrio.textContent = `P${parsed.priority}`;
+    els.prevRecurring.classList.toggle("hidden", !parsed.recurring);
   } catch {
     // Silent fallback when offline
   }
@@ -177,6 +205,7 @@ function connectWebSocket() {
     state.reconnectDelay = 1000;
     els.syncDot.classList.add("online");
     els.syncText.textContent = "Live";
+    refreshHealth();
   });
 
   socket.addEventListener("message", async (evt) => {
@@ -184,6 +213,9 @@ function connectWebSocket() {
       const payload = JSON.parse(evt.data);
       if (payload.event === "sync") {
         await loadTasks();
+        refreshHealth();
+      } else if (payload.event === "devices") {
+        refreshHealth();
       }
     } catch {
       await loadTasks();
@@ -246,6 +278,8 @@ els.toggleCompletedBtn.addEventListener("click", () => {
   renderTasks();
 });
 
+els.clearCompletedBtn.addEventListener("click", clearCompletedTasks);
+
 els.installHelpBtn.addEventListener("click", () => els.installModal.classList.remove("hidden"));
 els.closeModalBtn.addEventListener("click", () => els.installModal.classList.add("hidden"));
 els.installModal.addEventListener("click", (evt) => {
@@ -260,3 +294,4 @@ if ("serviceWorker" in navigator) {
 
 loadTasks();
 connectWebSocket();
+refreshHealth();

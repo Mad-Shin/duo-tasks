@@ -226,6 +226,7 @@ html, body {
 .chip-category { background: #ecfdf5; color: #065f46; }
 .chip-due { background: #fff7ed; color: #9a3412; }
 .chip-prio { background: #fef2f2; color: #991b1b; }
+.chip-recurring { background: #f3e8ff; color: #6b21a8; }
 
 .section-header h2 {
   font-size: 0.92rem;
@@ -334,8 +335,31 @@ html, body {
   margin-top: 20px;
 }
 
+.completed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.btn-clear-completed {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: #b91c1c;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-clear-completed:hover {
+  background: #fee2e2;
+}
+
 .section-toggle {
-  width: 100%;
+  flex: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;

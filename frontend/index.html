@@ -66,6 +66,7 @@
           <button type="button" class="shortcut-btn" data-token="#courses">#courses</button>
           <button type="button" class="shortcut-btn" data-token="#maison">#maison</button>
           <button type="button" class="shortcut-btn" data-token="demain">demain</button>
+          <button type="button" class="shortcut-btn" data-token="tous les jours">🔁 tous les jours</button>
           <button type="button" class="shortcut-btn" data-token="!1">!1</button>
         </div>
 
@@ -75,6 +76,7 @@
           <span class="chip chip-category" id="prevCategory">#inbox</span>
           <span class="chip chip-due" id="prevDue">today</span>
           <span class="chip chip-prio" id="prevPrio">P3</span>
+          <span class="chip chip-recurring hidden" id="prevRecurring">🔁 quotidien</span>
         </div>
       </form>
     </section>
@@ -91,10 +93,13 @@
       </section>
 
       <section class="completed-section" aria-labelledby="completedHeading">
-        <button type="button" class="section-toggle" id="toggleCompletedBtn">
-          <span id="completedHeading">Terminées (0)</span>
-          <span id="completedChevron">▾</span>
-        </button>
+        <div class="completed-header">
+          <button type="button" class="section-toggle" id="toggleCompletedBtn">
+            <span id="completedHeading">Terminées (0)</span>
+            <span id="completedChevron">▾</span>
+          </button>
+          <button type="button" class="btn-clear-completed hidden" id="clearCompletedBtn">Vider terminées</button>
+        </div>
         <ul class="task-list" id="completedTaskList"></ul>
       </section>
     </main>

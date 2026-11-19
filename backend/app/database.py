@@ -97,6 +97,7 @@ def init_db() -> None:
     with get_connection() as (conn, mode):
         id_col = "SERIAL PRIMARY KEY" if mode == "postgres" else "INTEGER PRIMARY KEY AUTOINCREMENT"
         completed_col = "BOOLEAN NOT NULL DEFAULT FALSE" if mode == "postgres" else "INTEGER NOT NULL DEFAULT 0"
+        recurring_col = "BOOLEAN NOT NULL DEFAULT FALSE" if mode == "postgres" else "INTEGER NOT NULL DEFAULT 0"
         ddl = f"""
         CREATE TABLE IF NOT EXISTS tasks (
             id {id_col},
@@ -107,11 +108,19 @@ def init_db() -> None:
             priority INTEGER NOT NULL DEFAULT 3,
             due_label TEXT NOT NULL DEFAULT 'today',
             completed {completed_col},
+            recurring {recurring_col},
             created_at TEXT NOT NULL
         )
         """
         cur = conn.cursor()
         cur.execute(ddl)
+        if mode == "postgres":
+            cur.execute(f"ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurring {recurring_col}")
+        else:
+            try:
+                cur.execute(f"ALTER TABLE tasks ADD COLUMN recurring {recurring_col}")
+            except Exception:
+                pass
         cur.close()
 
 
@@ -119,6 +128,7 @@ def row_to_task_dict(row: Any) -> dict[str, Any]:
     """Convert a SQLite Row or Postgres dict row into a normalized Task dict."""
     data = dict(row)
     data["completed"] = bool(data["completed"])
+    data["recurring"] = bool(data.get("recurring", False))
     data["priority"] = int(data["priority"])
     data["id"] = int(data["id"])
     return data
