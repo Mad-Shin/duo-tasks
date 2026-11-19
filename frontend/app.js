@@ -1,52 +1,43 @@
-const AISLE_ORDER = [
-  "Fruits & Légumes",
-  "Frais & Laitier",
-  "Boulangerie",
-  "Viande & Poisson",
-  "Épicerie",
-  "Boissons",
-  "Maison & Hygiène",
-  "Autre"
-];
-
 const RECURRENCE_LABELS = {
-  daily: "🔁 quotidien",
-  weekly: "🔁 hebdo",
-  monthly: "🔁 mensuel"
+  daily: "Quotidien",
+  weekly: "Hebdo",
+  monthly: "Mensuel"
 };
 
 const TEMPORAL_BUCKETS = [
-  { key: "today", label: "🔥 Prioritaires & Aujourd'hui" },
-  { key: "tomorrow", label: "🌅 Demain" },
-  { key: "weekend", label: "🛋️ Ce Week-end" },
-  { key: "week", label: "📅 Cette semaine" },
-  { key: "later", label: "🗓️ Plus tard" }
+  { key: "today", label: "Aujourd'hui" },
+  { key: "tomorrow", label: "Demain" },
+  { key: "weekend", label: "Ce week-end" },
+  { key: "week", label: "Cette semaine" },
+  { key: "later", label: "Plus tard" }
 ];
 
+const SVG_SNOOZE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>';
+const SVG_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+
 const state = {
-  activeTab: "tasks",
+  composerMode: "task",
   identity: localStorage.getItem("duotasks_identity") || "me",
   theme: localStorage.getItem("duotasks_theme") || "light",
-  groupedMode: localStorage.getItem("duotasks_grouped") !== "false",
   profile: {
     me_name: "Valentin",
-    me_emoji: "🦊",
-    wife_name: "Chérie",
-    wife_emoji: "🌸",
-    love_note: "On fait quoi de beau ce soir ? ✨",
-    love_note_author: "both",
-    kudos_count: 0
+    wife_name: "Lisa"
+  },
+  composerTags: {
+    assignee: "both",
+    category: null,
+    due_label: null,
+    recurring: false,
+    priority: null
   },
   tasks: [],
   allTasks: [],
   staples: [],
-  packs: [],
-  stats: null,
+  suggestionIndex: 0,
   filterType: "all",
   filterValue: "all",
   searchQuery: "",
-  stapleAisle: "all",
-  showCompleted: true,
+  showCompleted: false,
   editingTaskId: null,
   ws: null,
   reconnectDelay: 1000
@@ -60,91 +51,68 @@ const els = {
   installHelpBtn: document.getElementById("installHelpBtn"),
   installModal: document.getElementById("installModal"),
   closeModalBtn: document.getElementById("closeModalBtn"),
-  groceriesBadge: document.getElementById("groceriesBadge"),
   idBtnMe: document.getElementById("idBtnMe"),
   idBtnWife: document.getElementById("idBtnWife"),
+  tagPillMe: document.getElementById("tagPillMe"),
+  tagPillWife: document.getElementById("tagPillWife"),
   filterChipMe: document.getElementById("filterChipMe"),
   filterChipWife: document.getElementById("filterChipWife"),
 
-  // Couple Banner & Profile Modal
-  loveNoteText: document.getElementById("loveNoteText"),
-  loveNoteAuthorLabel: document.getElementById("loveNoteAuthorLabel"),
-  toggleLoveNoteBtn: document.getElementById("toggleLoveNoteBtn"),
-  loveNoteForm: document.getElementById("loveNoteForm"),
-  loveNoteInput: document.getElementById("loveNoteInput"),
-  sendKudosBtn: document.getElementById("sendKudosBtn"),
-  kudosCountBadge: document.getElementById("kudosCountBadge"),
-  karmaScore: document.getElementById("karmaScore"),
+  // Profile Modal
   editProfileBtn: document.getElementById("editProfileBtn"),
   profileModal: document.getElementById("profileModal"),
   closeProfileModalBtn: document.getElementById("closeProfileModalBtn"),
   profileForm: document.getElementById("profileForm"),
   profMeName: document.getElementById("profMeName"),
-  profMeEmoji: document.getElementById("profMeEmoji"),
   profWifeName: document.getElementById("profWifeName"),
-  profWifeEmoji: document.getElementById("profWifeEmoji"),
 
-  // Quick Add & Tasks View
+  // Mode Switch & Composers
+  modeTaskBtn: document.getElementById("modeTaskBtn"),
+  modeEventBtn: document.getElementById("modeEventBtn"),
+  taskComposerCard: document.getElementById("taskComposerCard"),
+  eventComposerCard: document.getElementById("eventComposerCard"),
   form: document.getElementById("quickAddForm"),
   input: document.getElementById("quickAddInput"),
+  eventAddForm: document.getElementById("eventAddForm"),
+  eventTitleInput: document.getElementById("eventTitleInput"),
+  eventDateInput: document.getElementById("eventDateInput"),
+  eventTimeInput: document.getElementById("eventTimeInput"),
+  eventLocationInput: document.getElementById("eventLocationInput"),
+  grocerySuggestionRow: document.getElementById("grocerySuggestionRow"),
+  grocerySuggestionBtn: document.getElementById("grocerySuggestionBtn"),
+  grocerySuggestionSkip: document.getElementById("grocerySuggestionSkip"),
+
+  // Search & List
+  toggleSearchBtn: document.getElementById("toggleSearchBtn"),
+  searchDrawer: document.getElementById("searchDrawer"),
   searchInput: document.getElementById("taskSearchInput"),
-  groupModeToggleBtn: document.getElementById("groupModeToggleBtn"),
   activeList: document.getElementById("activeTaskList"),
   completedList: document.getElementById("completedTaskList"),
+  completedWrap: document.getElementById("completedWrap"),
   emptyState: document.getElementById("emptyState"),
   completedHeading: document.getElementById("completedHeading"),
   toggleCompletedBtn: document.getElementById("toggleCompletedBtn"),
   completedChevron: document.getElementById("completedChevron"),
-  clearCompletedBtn: document.getElementById("clearCompletedBtn"),
-  prevAssignee: document.getElementById("prevAssignee"),
-  prevCategory: document.getElementById("prevCategory"),
-  prevDue: document.getElementById("prevDue"),
-  prevPrio: document.getElementById("prevPrio"),
-  prevRecurring: document.getElementById("prevRecurring"),
-  prevQty: document.getElementById("prevQty"),
-  prevAisle: document.getElementById("prevAisle"),
-
-  // Groceries View
-  groceryQuickForm: document.getElementById("groceryQuickForm"),
-  groceryQuickInput: document.getElementById("groceryQuickInput"),
-  toggleNewStapleBtn: document.getElementById("toggleNewStapleBtn"),
-  newStapleForm: document.getElementById("newStapleForm"),
-  stapleNameInput: document.getElementById("stapleNameInput"),
-  stapleQtyInput: document.getElementById("stapleQtyInput"),
-  stapleAisleInput: document.getElementById("stapleAisleInput"),
-  stapleEmojiInput: document.getElementById("stapleEmojiInput"),
-  staplesGrid: document.getElementById("staplesGrid"),
-  groceriesByAisle: document.getElementById("groceriesByAisle"),
-  groceriesEmptyState: document.getElementById("groceriesEmptyState"),
-  clearGroceriesBtn: document.getElementById("clearGroceriesBtn"),
-
-  // Routines View
-  routinesSummary: document.getElementById("routinesSummary"),
   resetRoutinesBtn: document.getElementById("resetRoutinesBtn"),
-  routinesList: document.getElementById("routinesList"),
-  routinesEmptyState: document.getElementById("routinesEmptyState"),
-  packsGrid: document.getElementById("packsGrid"),
+  clearCompletedBtn: document.getElementById("clearCompletedBtn"),
 
-  // Stats View
-  kpiGrid: document.getElementById("kpiGrid"),
-  balanceBars: document.getElementById("balanceBars"),
-  categoryBars: document.getElementById("categoryBars"),
-  activityFeed: document.getElementById("activityFeed"),
-
-  // Task Drawer
+  // Task / Event Drawer
   taskDrawer: document.getElementById("taskDrawer"),
   closeDrawerBtn: document.getElementById("closeDrawerBtn"),
   taskEditForm: document.getElementById("taskEditForm"),
   editTaskId: document.getElementById("editTaskId"),
   editTitle: document.getElementById("editTitle"),
   editNotes: document.getElementById("editNotes"),
+  editItemType: document.getElementById("editItemType"),
   editAssignee: document.getElementById("editAssignee"),
   editCategory: document.getElementById("editCategory"),
   editPriority: document.getElementById("editPriority"),
   editDueLabel: document.getElementById("editDueLabel"),
   editRecurrence: document.getElementById("editRecurrence"),
+  editEventDate: document.getElementById("editEventDate"),
+  editEventTime: document.getElementById("editEventTime"),
+  editLocation: document.getElementById("editLocation"),
   editQuantity: document.getElementById("editQuantity"),
-  editAisle: document.getElementById("editAisle"),
   drawerSubtaskList: document.getElementById("drawerSubtaskList"),
   newSubtaskInput: document.getElementById("newSubtaskInput"),
   addSubtaskBtn: document.getElementById("addSubtaskBtn"),
@@ -152,17 +120,85 @@ const els = {
   toastContainer: document.getElementById("toastContainer")
 };
 
-function partnerLabel(key) {
-  if (key === "me") return `${state.profile.me_emoji} ${state.profile.me_name}`;
-  if (key === "wife") return `${state.profile.wife_emoji} ${state.profile.wife_name}`;
-  return "💑 Duo";
+function partnerName(key) {
+  if (key === "me") return state.profile.me_name || "Valentin";
+  if (key === "wife") return state.profile.wife_name || "Lisa";
+  return "Valentin & Lisa";
+}
+
+function toLocalIsoDate(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function nextWeekdayDate(targetWeekday) {
+  // 0=Sun, 6=Sat
+  const now = new Date();
+  const diff = (targetWeekday - now.getDay() + 7) % 7;
+  const res = new Date(now);
+  res.setDate(now.getDate() + diff);
+  return toLocalIsoDate(res);
+}
+
+function formatShortFrDate(isoDate) {
+  if (!isoDate) return "";
+  try {
+    const [y, m, d] = isoDate.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    return dt.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+  } catch {
+    return isoDate;
+  }
+}
+
+function inferDueLabelFromIso(isoDate) {
+  if (!isoDate) return "today";
+  const now = new Date();
+  const todayIso = toLocalIsoDate(now);
+  const tmr = new Date(now);
+  tmr.setDate(now.getDate() + 1);
+  if (isoDate === todayIso) return "today";
+  if (isoDate === toLocalIsoDate(tmr)) return "tomorrow";
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const diffDays = Math.round((dt - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+  if (diffDays >= 0 && diffDays <= 6 && (dt.getDay() === 6 || dt.getDay() === 0)) return "weekend";
+  return "later";
+}
+
+function buildGoogleCalendarUrl(task) {
+  const rawDate = (task.event_date || task.due_date || toLocalIsoDate(new Date())).replace(/-/g, "");
+  const rawTime = (task.event_time || "").trim();
+  let datesParam = "";
+  if (rawTime && rawTime.includes(":")) {
+    const [hh, mm] = rawTime.split(":");
+    const startH = hh.padStart(2, "0");
+    const startM = mm.slice(0, 2).padStart(2, "0");
+    const endHour = String((Number(startH) + 2) % 24).padStart(2, "0");
+    datesParam = `${rawDate}T${startH}${startM}00/${rawDate}T${endHour}${startM}00`;
+  } else {
+    const [y, m, d] = (task.event_date || task.due_date || toLocalIsoDate(new Date())).split("-").map(Number);
+    const next = new Date(y, m - 1, d + 1);
+    const nextCompact = toLocalIsoDate(next).replace(/-/g, "");
+    datesParam = `${rawDate}/${nextCompact}`;
+  }
+
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: task.title,
+    dates: datesParam
+  });
+  if (task.location) params.set("location", task.location);
+  if (task.notes) params.set("details", task.notes);
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 function applyTheme(theme) {
   state.theme = theme;
   document.documentElement.setAttribute("data-theme", theme);
   localStorage.setItem("duotasks_theme", theme);
-  els.themeToggleBtn.textContent = theme === "dark" ? "☀️" : "🌙";
 }
 
 function applyIdentity(identity) {
@@ -173,22 +209,50 @@ function applyIdentity(identity) {
   });
 }
 
-function renderCoupleBanner() {
-  const p = state.profile;
-  els.idBtnMe.textContent = `${p.me_emoji} ${p.me_name}`;
-  els.idBtnWife.textContent = `${p.wife_emoji} ${p.wife_name}`;
-  els.filterChipMe.textContent = `${p.me_emoji} ${p.me_name}`;
-  els.filterChipWife.textContent = `${p.wife_emoji} ${p.wife_name}`;
+function renderProfileLabels() {
+  const me = partnerName("me");
+  const wife = partnerName("wife");
+  els.idBtnMe.textContent = me;
+  els.idBtnWife.textContent = wife;
+  els.tagPillMe.textContent = me;
+  els.tagPillWife.textContent = wife;
+  els.filterChipMe.textContent = me;
+  els.filterChipWife.textContent = wife;
+  if (els.editAssignee.options.length >= 3) {
+    els.editAssignee.options[0].textContent = `${me} & ${wife}`;
+    els.editAssignee.options[1].textContent = me;
+    els.editAssignee.options[2].textContent = wife;
+  }
+}
 
-  els.loveNoteText.textContent = `💬 ${p.love_note || "Belle journée à deux ✨"}`;
-  els.loveNoteAuthorLabel.textContent = p.love_note_author && p.love_note_author !== "both"
-    ? `— ${partnerLabel(p.love_note_author)}`
-    : "";
-  els.kudosCountBadge.textContent = `❤️ ${p.kudos_count || 0}`;
+function syncTagPillsUI() {
+  document.querySelectorAll(".tag-pill").forEach((pill) => {
+    const kind = pill.dataset.tagKind;
+    const val = pill.dataset.tagValue;
+    let active = false;
+    if (kind === "assignee") active = state.composerTags.assignee === val;
+    else if (kind === "category") active = state.composerTags.category === val;
+    else if (kind === "due") active = state.composerTags.due_label === val;
+    else if (kind === "recurring") active = state.composerTags.recurring;
+    else if (kind === "priority") active = state.composerTags.priority === Number(val);
+    pill.classList.toggle("active", active);
+  });
+}
 
-  const score = state.stats?.extra?.couple_score ?? 0;
-  els.karmaScore.textContent = String(score);
-  els.groupModeToggleBtn.textContent = state.groupedMode ? "Vue : Par échéance" : "Vue : Liste plate";
+function setComposerMode(mode) {
+  state.composerMode = mode;
+  els.modeTaskBtn.classList.toggle("active", mode === "task");
+  els.modeEventBtn.classList.toggle("active", mode === "event");
+  els.taskComposerCard.classList.toggle("hidden", mode !== "task");
+  els.eventComposerCard.classList.toggle("hidden", mode !== "event");
+  if (mode === "event") {
+    if (!els.eventDateInput.value) {
+      els.eventDateInput.value = nextWeekdayDate(6);
+    }
+    els.eventTitleInput.focus();
+  } else {
+    els.input.focus();
+  }
 }
 
 function showToast(message, actionLabel = null, actionCallback = null) {
@@ -214,7 +278,7 @@ function showToast(message, actionLabel = null, actionCallback = null) {
   els.toastContainer.appendChild(div);
   setTimeout(() => {
     div.remove();
-  }, actionLabel ? 5000 : 2800);
+  }, actionLabel ? 5000 : 2500);
 }
 
 async function apiJson(url, options = {}) {
@@ -229,44 +293,31 @@ async function apiJson(url, options = {}) {
   return res.json();
 }
 
-function makeChip(text, cls) {
-  const span = document.createElement("span");
-  span.className = `chip ${cls}`;
-  span.textContent = text;
-  return span;
-}
-
 async function refreshAll() {
   const params = new URLSearchParams();
   if (state.filterType === "assignee") params.set("assignee", state.filterValue);
   else if (state.filterType === "category") params.set("category", state.filterValue);
   else if (state.filterType === "due") params.set("due_label", state.filterValue);
+  else if (state.filterType === "recurring") params.set("recurring", "true");
+  else if (state.filterType === "item_type") params.set("item_type", state.filterValue);
   if (state.searchQuery.trim()) params.set("search", state.searchQuery.trim());
   const qs = params.toString() ? `?${params.toString()}` : "";
 
-  const [filteredTasks, allTasks, staples, stats, profile] = await Promise.all([
+  const [filteredTasks, allTasks, staples, profile] = await Promise.all([
     apiJson(`/api/tasks${qs}`),
     apiJson("/api/tasks"),
     apiJson("/api/groceries/staples"),
-    apiJson("/api/stats"),
     apiJson("/api/couple/profile")
   ]);
 
   state.tasks = filteredTasks;
   state.allTasks = allTasks;
   state.staples = staples;
-  state.stats = stats;
   state.profile = profile;
 
-  if (state.packs.length === 0) {
-    state.packs = await apiJson("/api/routines/packs");
-  }
-
-  renderCoupleBanner();
+  renderProfileLabels();
+  renderOneSuggestion();
   renderTasks();
-  renderGroceriesView();
-  renderRoutinesView();
-  renderStatsView();
 
   if (state.editingTaskId !== null) {
     const fresh = state.allTasks.find((t) => t.id === state.editingTaskId);
@@ -274,6 +325,18 @@ async function refreshAll() {
       renderDrawerSubtasks(fresh);
     }
   }
+}
+
+function renderOneSuggestion() {
+  const hasActiveGroceriesTask = state.allTasks.some((t) => !t.completed && t.category === "courses");
+  if (hasActiveGroceriesTask || state.staples.length === 0) {
+    els.grocerySuggestionRow.classList.add("hidden");
+    return;
+  }
+  const suggestion = state.staples[state.suggestionIndex % state.staples.length];
+  els.grocerySuggestionRow.classList.remove("hidden");
+  const qtySuffix = suggestion.default_qty ? ` (${suggestion.default_qty})` : "";
+  els.grocerySuggestionBtn.textContent = `+ Courses : ${suggestion.name}${qtySuffix}`;
 }
 
 function getBucketKey(task) {
@@ -290,8 +353,7 @@ function renderTasks() {
   const completed = state.tasks.filter((t) => t.completed);
 
   const globalActive = state.allTasks.filter((t) => !t.completed).length;
-  const globalDone = state.allTasks.filter((t) => t.completed).length;
-  els.taskCounter.textContent = `${globalActive} active${globalActive > 1 ? "s" : ""} · ${globalDone} terminée${globalDone > 1 ? "s" : ""}`;
+  els.taskCounter.textContent = `${globalActive} à faire`;
   els.completedHeading.textContent = `Terminées (${completed.length})`;
 
   els.activeList.innerHTML = "";
@@ -301,31 +363,30 @@ function renderTasks() {
     els.emptyState.classList.remove("hidden");
   } else {
     els.emptyState.classList.add("hidden");
-    if (state.groupedMode) {
-      const grouped = new Map();
-      TEMPORAL_BUCKETS.forEach((b) => grouped.set(b.key, []));
-      active.forEach((task) => grouped.get(getBucketKey(task)).push(task));
+    const grouped = new Map();
+    TEMPORAL_BUCKETS.forEach((b) => grouped.set(b.key, []));
+    active.forEach((task) => grouped.get(getBucketKey(task)).push(task));
 
-      const nonEmptyBuckets = TEMPORAL_BUCKETS.filter((b) => grouped.get(b.key).length > 0);
-      const showHeaders = nonEmptyBuckets.length > 1;
-      nonEmptyBuckets.forEach((bucket) => {
-        if (showHeaders) {
-          const hdr = document.createElement("li");
-          hdr.className = "task-group-header";
-          hdr.textContent = `${bucket.label} (${grouped.get(bucket.key).length})`;
-          els.activeList.appendChild(hdr);
-        }
-        grouped.get(bucket.key).forEach((task) => els.activeList.appendChild(createTaskElement(task)));
-      });
-    } else {
-      active.forEach((task) => els.activeList.appendChild(createTaskElement(task)));
-    }
+    const nonEmptyBuckets = TEMPORAL_BUCKETS.filter((b) => grouped.get(b.key).length > 0);
+    const showHeaders = nonEmptyBuckets.length > 1;
+    nonEmptyBuckets.forEach((bucket) => {
+      if (showHeaders) {
+        const hdr = document.createElement("li");
+        hdr.className = "task-group-header";
+        hdr.textContent = bucket.label;
+        els.activeList.appendChild(hdr);
+      }
+      grouped.get(bucket.key).forEach((task) => els.activeList.appendChild(createTaskElement(task)));
+    });
   }
 
   completed.forEach((task) => els.completedList.appendChild(createTaskElement(task)));
-  els.completedList.classList.toggle("hidden", !state.showCompleted);
+  els.completedWrap.classList.toggle("hidden", !state.showCompleted || completed.length === 0);
   els.completedChevron.textContent = state.showCompleted ? "▾" : "▸";
   els.clearCompletedBtn.classList.toggle("hidden", completed.length === 0);
+
+  const hasDoneRecurring = state.allTasks.some((t) => t.recurring && t.completed);
+  els.resetRoutinesBtn.classList.toggle("hidden", !hasDoneRecurring);
 }
 
 function createTaskElement(task) {
@@ -348,50 +409,163 @@ function createTaskElement(task) {
 
   const title = document.createElement("div");
   title.className = "task-title";
-  title.textContent = task.title;
+  title.textContent = task.item_type === "event" ? `📅 ${task.title}` : task.title;
   content.appendChild(title);
 
   if (task.notes) {
     const snippet = document.createElement("div");
     snippet.className = "task-notes-snippet";
-    snippet.textContent = `📝 ${task.notes}`;
+    snippet.textContent = task.notes;
     content.appendChild(snippet);
   }
 
-  const meta = document.createElement("div");
-  meta.className = "task-meta";
-  meta.appendChild(makeChip(partnerLabel(task.assignee), "chip-assignee"));
-  meta.appendChild(makeChip(`#${task.category}`, "chip-category"));
-  meta.appendChild(makeChip(task.due_label, "chip-due"));
-  if (task.priority < 3) {
-    meta.appendChild(makeChip(`P${task.priority}`, "chip-prio"));
+  const metaParts = [];
+  if (task.item_type === "event" && task.event_date) {
+    const dateTxt = formatShortFrDate(task.event_date);
+    metaParts.push({ text: task.event_time ? `${dateTxt} · ${task.event_time}` : dateTxt, accent: true });
+    if (task.location) metaParts.push({ text: task.location, accent: false });
   }
-  if (task.recurring) {
-    meta.appendChild(makeChip(RECURRENCE_LABELS[task.recurrence_rule] || "🔁 quotidien", "chip-recurring"));
+  if (task.assignee !== "both") {
+    metaParts.push({ text: partnerName(task.assignee), accent: false });
+  }
+  if (task.category && task.category !== "inbox" && !(task.item_type === "event" && task.category === "date")) {
+    metaParts.push({ text: `#${task.category}`, accent: task.category === "courses" });
   }
   if (task.quantity) {
-    meta.appendChild(makeChip(`📦 ${task.quantity}`, "chip-qty"));
+    metaParts.push({ text: task.quantity, accent: true });
   }
-  if (task.aisle) {
-    meta.appendChild(makeChip(`🛒 ${task.aisle}`, "chip-aisle"));
+  if (task.item_type !== "event" && task.due_label && task.due_label !== "today") {
+    metaParts.push({ text: task.due_label, accent: task.due_label === "tomorrow" });
+  }
+  if (task.recurring) {
+    metaParts.push({ text: `↻ ${RECURRENCE_LABELS[task.recurrence_rule] || "Quotidien"}`, accent: false });
   }
   if (task.subtasks && task.subtasks.length > 0) {
     const doneSub = task.subtasks.filter((s) => s.done).length;
-    meta.appendChild(makeChip(`☑ ${doneSub}/${task.subtasks.length}`, "chip-subtask"));
+    metaParts.push({ text: `${doneSub}/${task.subtasks.length}`, accent: false });
   }
 
-  content.appendChild(meta);
+  if (metaParts.length > 0) {
+    const metaLine = document.createElement("div");
+    metaLine.className = "task-meta-line";
+    metaParts.forEach((part, idx) => {
+      if (idx > 0) {
+        const dot = document.createElement("span");
+        dot.className = "meta-dot";
+        dot.textContent = "·";
+        metaLine.appendChild(dot);
+      }
+      const sp = document.createElement("span");
+      if (part.accent) sp.className = "meta-pill-accent";
+      sp.textContent = part.text;
+      metaLine.appendChild(sp);
+    });
+    content.appendChild(metaLine);
+  }
+
+  // Seamless 1-Tap Apple & Google Calendar Sync buttons for events
+  if (!task.completed && task.item_type === "event") {
+    const syncBar = document.createElement("div");
+    syncBar.className = "cal-sync-bar";
+    syncBar.addEventListener("click", (e) => e.stopPropagation());
+
+    const gLink = document.createElement("a");
+    gLink.className = "cal-sync-btn";
+    gLink.href = buildGoogleCalendarUrl(task);
+    gLink.target = "_blank";
+    gLink.rel = "noopener noreferrer";
+    gLink.textContent = "+ Google Agenda";
+
+    const aLink = document.createElement("a");
+    aLink.className = "cal-sync-btn";
+    aLink.href = `/api/tasks/${task.id}/ics`;
+    aLink.textContent = "+ Apple Calendrier";
+
+    syncBar.appendChild(gLink);
+    syncBar.appendChild(aLink);
+    content.appendChild(syncBar);
+  }
+
+  // Inline checklist for the living Courses task (or any active task with subtasks)
+  const hasInlineChecklist = !task.completed && (task.category === "courses" || (task.subtasks && task.subtasks.length > 0));
+  if (hasInlineChecklist) {
+    const checklist = document.createElement("div");
+    checklist.className = "inline-checklist";
+    checklist.addEventListener("click", (e) => e.stopPropagation());
+
+    (task.subtasks || []).forEach((sub) => {
+      const row = document.createElement("div");
+      row.className = `inline-sub-row${sub.done ? " done" : ""}`;
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = Boolean(sub.done);
+      cb.addEventListener("change", async () => {
+        await apiJson(`/api/tasks/${task.id}/subtasks/${sub.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ done: cb.checked })
+        });
+        await refreshAll();
+      });
+
+      const lbl = document.createElement("span");
+      lbl.textContent = sub.text;
+
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "inline-sub-del";
+      del.title = "Retirer";
+      del.textContent = "✕";
+      del.addEventListener("click", async () => {
+        await apiJson(`/api/tasks/${task.id}/subtasks/${sub.id}`, { method: "DELETE" });
+        await refreshAll();
+      });
+
+      row.appendChild(cb);
+      row.appendChild(lbl);
+      row.appendChild(del);
+      checklist.appendChild(row);
+    });
+
+    if (task.category === "courses") {
+      const addForm = document.createElement("form");
+      addForm.className = "inline-sub-add";
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.placeholder = "+ Ajouter un article…";
+      inp.maxLength = 200;
+      const addBtn = document.createElement("button");
+      addBtn.type = "submit";
+      addBtn.textContent = "+";
+      addForm.appendChild(inp);
+      addForm.appendChild(addBtn);
+      addForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const text = inp.value.trim();
+        if (!text) return;
+        inp.value = "";
+        await apiJson(`/api/tasks/${task.id}/subtasks`, {
+          method: "POST",
+          body: JSON.stringify({ text })
+        });
+        await refreshAll();
+      });
+      checklist.appendChild(addForm);
+    }
+
+    content.appendChild(checklist);
+  }
 
   const actionsCol = document.createElement("div");
   actionsCol.className = "task-actions-col";
 
-  if (!task.completed && task.due_label !== "tomorrow") {
+  if (!task.completed && task.item_type !== "event" && task.due_label !== "tomorrow") {
     const snoozeBtn = document.createElement("button");
     snoozeBtn.type = "button";
-    snoozeBtn.className = "snooze-btn";
+    snoozeBtn.className = "row-action-btn";
     snoozeBtn.title = "Reporter à demain";
     snoozeBtn.setAttribute("aria-label", "Reporter à demain");
-    snoozeBtn.textContent = "🌅";
+    snoozeBtn.innerHTML = SVG_SNOOZE;
     snoozeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       snoozeToTomorrow(task);
@@ -401,9 +575,9 @@ function createTaskElement(task) {
 
   const delBtn = document.createElement("button");
   delBtn.type = "button";
-  delBtn.className = "delete-btn";
+  delBtn.className = "row-action-btn delete";
   delBtn.setAttribute("aria-label", "Supprimer");
-  delBtn.textContent = "🗑";
+  delBtn.innerHTML = SVG_TRASH;
   delBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     deleteTask(task);
@@ -416,273 +590,6 @@ function createTaskElement(task) {
   return li;
 }
 
-function renderGroceriesView() {
-  const groceryTasks = state.allTasks.filter((t) => t.category === "courses");
-  const activeGroceries = groceryTasks.filter((t) => !t.completed);
-  const completedGroceries = groceryTasks.filter((t) => t.completed);
-
-  els.groceriesBadge.textContent = String(activeGroceries.length);
-  els.groceriesBadge.classList.toggle("hidden", activeGroceries.length === 0);
-  els.clearGroceriesBtn.classList.toggle("hidden", completedGroceries.length === 0);
-
-  const activeTitles = new Set(activeGroceries.map((t) => t.title.toLowerCase()));
-  const filteredStaples = state.staples.filter(
-    (s) => state.stapleAisle === "all" || s.aisle === state.stapleAisle
-  );
-  els.staplesGrid.innerHTML = "";
-  filteredStaples.forEach((staple) => {
-    const inCart = activeTitles.has(staple.name.toLowerCase());
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = `staple-btn${inCart ? " in-cart" : ""}`;
-
-    const emoji = document.createElement("span");
-    emoji.className = "staple-emoji";
-    emoji.textContent = staple.emoji || "🛒";
-
-    const info = document.createElement("div");
-    info.className = "staple-info";
-
-    const name = document.createElement("div");
-    name.className = "staple-name";
-    name.textContent = staple.name;
-
-    const sub = document.createElement("div");
-    sub.className = "staple-sub";
-    sub.textContent = inCart ? "✓ Dans le panier" : `${staple.default_qty || staple.aisle}`;
-
-    info.appendChild(name);
-    info.appendChild(sub);
-    btn.appendChild(emoji);
-    btn.appendChild(info);
-    btn.addEventListener("click", () => quickAddStaple(staple));
-    els.staplesGrid.appendChild(btn);
-  });
-
-  els.groceriesByAisle.innerHTML = "";
-  if (groceryTasks.length === 0) {
-    els.groceriesEmptyState.classList.remove("hidden");
-    return;
-  }
-  els.groceriesEmptyState.classList.add("hidden");
-
-  const groups = new Map();
-  AISLE_ORDER.forEach((aisle) => groups.set(aisle, []));
-  activeGroceries.forEach((task) => {
-    const key = AISLE_ORDER.includes(task.aisle) ? task.aisle : "Autre";
-    groups.get(key).push(task);
-  });
-
-  groups.forEach((items, aisleName) => {
-    if (items.length === 0) return;
-    const h = document.createElement("h3");
-    h.className = "aisle-heading";
-    h.textContent = `${aisleName} (${items.length})`;
-    els.groceriesByAisle.appendChild(h);
-
-    const ul = document.createElement("ul");
-    ul.className = "task-list";
-    items.forEach((t) => ul.appendChild(createTaskElement(t)));
-    els.groceriesByAisle.appendChild(ul);
-  });
-
-  if (completedGroceries.length > 0) {
-    const h = document.createElement("h3");
-    h.className = "aisle-heading";
-    h.textContent = `Dans le caddie / Achetés (${completedGroceries.length})`;
-    els.groceriesByAisle.appendChild(h);
-
-    const ul = document.createElement("ul");
-    ul.className = "task-list";
-    completedGroceries.forEach((t) => ul.appendChild(createTaskElement(t)));
-    els.groceriesByAisle.appendChild(ul);
-  }
-}
-
-function renderRoutinesView() {
-  const recurringTasks = state.allTasks.filter((t) => t.recurring);
-  const doneCount = recurringTasks.filter((t) => t.completed).length;
-  els.routinesSummary.textContent = `${recurringTasks.length} routine(s) · ${doneCount} cochée(s) aujourd'hui`;
-
-  els.routinesList.innerHTML = "";
-  if (recurringTasks.length === 0) {
-    els.routinesEmptyState.classList.remove("hidden");
-  } else {
-    els.routinesEmptyState.classList.add("hidden");
-    recurringTasks.forEach((t) => els.routinesList.appendChild(createTaskElement(t)));
-  }
-
-  els.packsGrid.innerHTML = "";
-  state.packs.forEach((pack) => {
-    const card = document.createElement("div");
-    card.className = "pack-card";
-
-    const top = document.createElement("div");
-    const title = document.createElement("div");
-    title.className = "pack-title";
-    title.textContent = `${pack.emoji} ${pack.name}`;
-
-    const desc = document.createElement("div");
-    desc.className = "muted-text";
-    desc.textContent = pack.description;
-
-    const preview = document.createElement("ul");
-    preview.className = "pack-preview-list";
-    pack.tasks.slice(0, 3).forEach((line) => {
-      const li = document.createElement("li");
-      li.textContent = line;
-      preview.appendChild(li);
-    });
-    if (pack.tasks.length > 3) {
-      const more = document.createElement("li");
-      more.textContent = `+ ${pack.tasks.length - 3} autre(s)...`;
-      preview.appendChild(more);
-    }
-
-    top.appendChild(title);
-    top.appendChild(desc);
-    top.appendChild(preview);
-
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn-small";
-    btn.textContent = `Appliquer (${pack.tasks.length} tâches)`;
-    btn.addEventListener("click", () => applyPack(pack));
-
-    card.appendChild(top);
-    card.appendChild(btn);
-    els.packsGrid.appendChild(card);
-  });
-}
-
-function renderStatsView() {
-  if (!state.stats) return;
-  const s = state.stats;
-
-  els.kpiGrid.innerHTML = "";
-  const kpis = [
-    { val: s.total_active, lbl: "À faire" },
-    { val: s.overdue_or_urgent, lbl: "Urgentes (P1)" },
-    { val: s.courses_active, lbl: "Articles courses" },
-    { val: s.total_completed, lbl: "Terminées" }
-  ];
-  kpis.forEach((k) => {
-    const box = document.createElement("div");
-    box.className = "kpi-card";
-    const v = document.createElement("div");
-    v.className = "kpi-val";
-    v.textContent = String(k.val);
-    const l = document.createElement("div");
-    l.className = "kpi-lbl";
-    l.textContent = k.lbl;
-    box.appendChild(v);
-    box.appendChild(l);
-    els.kpiGrid.appendChild(box);
-  });
-
-  els.balanceBars.innerHTML = "";
-  const totalDone = Math.max(1, (s.completed_by_actor.me || 0) + (s.completed_by_actor.wife || 0) + (s.completed_by_actor.both || 0));
-  const actors = [
-    { key: "me", label: partnerLabel("me"), cls: "" },
-    { key: "wife", label: partnerLabel("wife"), cls: "wife" },
-    { key: "both", label: partnerLabel("both"), cls: "both" }
-  ];
-  actors.forEach((a) => {
-    const active = s.by_assignee[a.key]?.active || 0;
-    const done = s.completed_by_actor[a.key] || 0;
-    const pct = Math.round((done / totalDone) * 100);
-
-    const row = document.createElement("div");
-    row.className = "bar-row";
-    const lbl = document.createElement("div");
-    lbl.className = "bar-label";
-    const left = document.createElement("span");
-    left.textContent = a.label;
-    const right = document.createElement("span");
-    right.textContent = `${done} faites · ${active} en cours`;
-    lbl.appendChild(left);
-    lbl.appendChild(right);
-
-    const track = document.createElement("div");
-    track.className = "bar-track";
-    const fill = document.createElement("div");
-    fill.className = `bar-fill ${a.cls}`;
-    fill.style.width = `${pct}%`;
-    track.appendChild(fill);
-
-    row.appendChild(lbl);
-    row.appendChild(track);
-    els.balanceBars.appendChild(row);
-  });
-
-  els.categoryBars.innerHTML = "";
-  const cats = Object.entries(s.by_category || {});
-  if (cats.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "muted-text";
-    empty.textContent = "Aucune catégorie active pour le moment.";
-    els.categoryBars.appendChild(empty);
-  } else {
-    const maxCat = Math.max(1, ...cats.map(([, c]) => c.active + c.completed));
-    cats.forEach(([catName, counts]) => {
-      const total = counts.active + counts.completed;
-      const pct = Math.round((total / maxCat) * 100);
-      const row = document.createElement("div");
-      row.className = "bar-row";
-      const lbl = document.createElement("div");
-      lbl.className = "bar-label";
-      const left = document.createElement("span");
-      left.textContent = `#${catName}`;
-      const right = document.createElement("span");
-      right.textContent = `${counts.active} actives · ${counts.completed} terminées`;
-      lbl.appendChild(left);
-      lbl.appendChild(right);
-      const track = document.createElement("div");
-      track.className = "bar-track";
-      const fill = document.createElement("div");
-      fill.className = "bar-fill both";
-      fill.style.width = `${pct}%`;
-      track.appendChild(fill);
-      row.appendChild(lbl);
-      row.appendChild(track);
-      els.categoryBars.appendChild(row);
-    });
-  }
-
-  els.activityFeed.innerHTML = "";
-  const actionsMap = {
-    created: "a ajouté",
-    completed: "a terminé",
-    reopened: "a rouvert",
-    deleted: "a supprimé",
-    quick_added: "a mis au panier",
-    applied_pack: "a appliqué",
-    reset_routines: "a réinitialisé",
-    cleared_completed: "a vidé",
-    kudos: "a envoyé",
-    love_note: "a écrit un mot doux :"
-  };
-  if (!s.recent_activity || s.recent_activity.length === 0) {
-    const li = document.createElement("li");
-    li.className = "muted-text";
-    li.textContent = "Aucune activité enregistrée.";
-    els.activityFeed.appendChild(li);
-  } else {
-    s.recent_activity.forEach((entry) => {
-      const li = document.createElement("li");
-      li.className = "activity-row";
-      const msg = document.createElement("span");
-      msg.textContent = `${partnerLabel(entry.actor)} ${actionsMap[entry.action] || entry.action} « ${entry.task_title} »`;
-      const tm = document.createElement("span");
-      tm.className = "activity-time";
-      tm.textContent = entry.created_at ? entry.created_at.slice(11, 16) : "";
-      li.appendChild(msg);
-      li.appendChild(tm);
-      els.activityFeed.appendChild(li);
-    });
-  }
-}
-
 async function toggleTask(task) {
   const targetCompleted = !task.completed;
   task.completed = targetCompleted;
@@ -693,7 +600,7 @@ async function toggleTask(task) {
       body: JSON.stringify({ completed: targetCompleted, completed_by: state.identity })
     });
     if (targetCompleted) {
-      showToast("✓ Tâche terminée !", "Annuler", async () => {
+      showToast("Terminée", "Annuler", async () => {
         await apiJson(`/api/tasks/${task.id}`, {
           method: "PATCH",
           body: JSON.stringify({ completed: false })
@@ -714,11 +621,10 @@ async function snoozeToTomorrow(task) {
       method: "PATCH",
       body: JSON.stringify({ due_label: "tomorrow" })
     });
-    showToast(`🌅 « ${task.title} » reportée à demain`);
+    showToast("Reportée à demain");
     await refreshAll();
   } catch (err) {
     console.error(err);
-    showToast("⚠️ Impossible de reporter");
   }
 }
 
@@ -733,7 +639,7 @@ async function deleteTask(taskOrId) {
   try {
     await apiJson(`/api/tasks/${taskId}`, { method: "DELETE" });
     if (snapshot.raw_input || snapshot.title) {
-      showToast("🗑 Tâche supprimée", "Annuler", async () => {
+      showToast("Supprimée", "Annuler", async () => {
         await apiJson("/api/tasks", {
           method: "POST",
           body: JSON.stringify({
@@ -747,6 +653,10 @@ async function deleteTask(taskOrId) {
             recurrence_rule: snapshot.recurrence_rule,
             quantity: snapshot.quantity,
             aisle: snapshot.aisle,
+            item_type: snapshot.item_type || "task",
+            event_date: snapshot.event_date || "",
+            event_time: snapshot.event_time || "",
+            location: snapshot.location || "",
             subtasks: snapshot.subtasks || []
           })
         });
@@ -760,33 +670,13 @@ async function deleteTask(taskOrId) {
   }
 }
 
-async function quickAddStaple(staple) {
-  try {
-    await apiJson(`/api/groceries/staples/${staple.id}/quick-add`, { method: "POST" });
-    showToast(`🛒 ${staple.name} ajouté au panier`);
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-async function applyPack(pack) {
-  try {
-    const res = await apiJson(`/api/routines/packs/${pack.id}/apply`, { method: "POST" });
-    showToast(`${pack.emoji} ${res.added_count} tâche(s) ajoutée(s)`);
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-function ensureSelectOption(selectEl, value, prefix = "") {
+function ensureSelectOption(selectEl, value) {
   if (!value) return;
   const exists = Array.from(selectEl.options).some((opt) => opt.value === value);
   if (!exists) {
     const opt = document.createElement("option");
     opt.value = value;
-    opt.textContent = `${prefix}${value}`;
+    opt.textContent = value;
     selectEl.appendChild(opt);
   }
 }
@@ -796,19 +686,20 @@ function openTaskDrawer(task) {
   els.editTaskId.value = String(task.id);
   els.editTitle.value = task.title;
   els.editNotes.value = task.notes || "";
+  els.editItemType.value = task.item_type || "task";
   els.editAssignee.value = task.assignee || "both";
   const cat = task.category || "inbox";
-  ensureSelectOption(els.editCategory, cat, "#");
+  ensureSelectOption(els.editCategory, cat);
   els.editCategory.value = cat;
   els.editPriority.value = String(task.priority || 3);
   const due = task.due_label || "today";
   ensureSelectOption(els.editDueLabel, due);
   els.editDueLabel.value = due;
   els.editRecurrence.value = task.recurrence_rule || (task.recurring ? "daily" : "none");
+  els.editEventDate.value = task.event_date || "";
+  els.editEventTime.value = task.event_time || "";
+  els.editLocation.value = task.location || "";
   els.editQuantity.value = task.quantity || "";
-  const aisle = task.aisle || "";
-  ensureSelectOption(els.editAisle, aisle);
-  els.editAisle.value = aisle;
   renderDrawerSubtasks(task);
   els.taskDrawer.classList.remove("hidden");
 }
@@ -857,29 +748,6 @@ function renderDrawerSubtasks(task) {
   });
 }
 
-let previewTimer = null;
-async function updateParsePreview() {
-  const raw = els.input.value;
-  try {
-    const parsed = await apiJson("/api/parse", {
-      method: "POST",
-      body: JSON.stringify({ raw_input: raw })
-    });
-    els.prevAssignee.textContent = partnerLabel(parsed.assignee);
-    els.prevCategory.textContent = `#${parsed.category}`;
-    els.prevDue.textContent = parsed.due_label;
-    els.prevPrio.textContent = `P${parsed.priority}`;
-    els.prevRecurring.textContent = RECURRENCE_LABELS[parsed.recurrence_rule] || "🔁 quotidien";
-    els.prevRecurring.classList.toggle("hidden", !parsed.recurring);
-    els.prevQty.textContent = parsed.quantity ? `📦 ${parsed.quantity}` : "";
-    els.prevQty.classList.toggle("hidden", !parsed.quantity);
-    els.prevAisle.textContent = parsed.aisle ? `🛒 ${parsed.aisle}` : "";
-    els.prevAisle.classList.toggle("hidden", !parsed.aisle);
-  } catch {
-    // Silent fallback when offline
-  }
-}
-
 async function refreshHealth() {
   try {
     const health = await apiJson("/api/health");
@@ -888,7 +756,7 @@ async function refreshHealth() {
       els.syncText.textContent = `Live (${count})`;
     }
   } catch {
-    // Silent fallback when offline
+    // Silent fallback
   }
 }
 
@@ -911,12 +779,6 @@ function connectWebSocket() {
       if (payload.event === "sync") {
         await refreshAll();
         refreshHealth();
-      } else if (payload.event === "kudos") {
-        els.sendKudosBtn.classList.remove("pulse");
-        void els.sendKudosBtn.offsetWidth;
-        els.sendKudosBtn.classList.add("pulse");
-        showToast(`💌 ${partnerLabel(payload.from)} : ${payload.message}`);
-        await refreshAll();
       } else if (payload.event === "devices") {
         refreshHealth();
       }
@@ -933,23 +795,11 @@ function connectWebSocket() {
   });
 }
 
-// --- Event Wiring ---
-
-document.querySelectorAll(".tab-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const tab = btn.dataset.tab;
-    state.activeTab = tab;
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
-    document.querySelectorAll(".view-pane").forEach((pane) => {
-      pane.classList.toggle("hidden", pane.id !== `view-${tab}`);
-    });
-  });
-});
+// --- Events ---
 
 document.querySelectorAll(".id-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     applyIdentity(btn.dataset.identity || "me");
-    showToast(`Téléphone réglé sur ${btn.textContent}`);
   });
 });
 
@@ -957,51 +807,64 @@ els.themeToggleBtn.addEventListener("click", () => {
   applyTheme(state.theme === "dark" ? "light" : "dark");
 });
 
-els.groupModeToggleBtn.addEventListener("click", () => {
-  state.groupedMode = !state.groupedMode;
-  localStorage.setItem("duotasks_grouped", String(state.groupedMode));
-  renderCoupleBanner();
-  renderTasks();
+els.modeTaskBtn.addEventListener("click", () => setComposerMode("task"));
+els.modeEventBtn.addEventListener("click", () => setComposerMode("event"));
+
+// Event template pills & quick date pills
+document.querySelectorAll(".preset-pill").forEach((pill) => {
+  pill.addEventListener("click", () => {
+    const preset = pill.dataset.preset || "";
+    els.eventTitleInput.value = preset;
+    if (preset.includes("Mariage")) els.eventTimeInput.value = "15:00";
+    else if (preset.includes("Dîner") || preset.includes("Soirée")) els.eventTimeInput.value = "20:00";
+    else if (preset.includes("Week-end")) els.eventTimeInput.value = "10:00";
+    els.eventTitleInput.focus();
+  });
 });
 
-// Couple Banner Events
-els.toggleLoveNoteBtn.addEventListener("click", () => {
-  els.loveNoteForm.classList.toggle("hidden");
-  if (!els.loveNoteForm.classList.contains("hidden")) {
-    els.loveNoteInput.value = state.profile.love_note || "";
-    els.loveNoteInput.focus();
-  }
+document.querySelectorAll(".date-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    document.querySelectorAll(".date-chip").forEach((c) => c.classList.remove("active"));
+    chip.classList.add("active");
+    if (chip.dataset.dateOffset !== undefined) {
+      const d = new Date();
+      d.setDate(d.getDate() + Number(chip.dataset.dateOffset));
+      els.eventDateInput.value = toLocalIsoDate(d);
+    } else if (chip.dataset.datePreset === "sat") {
+      els.eventDateInput.value = nextWeekdayDate(6);
+    } else if (chip.dataset.datePreset === "sun") {
+      els.eventDateInput.value = nextWeekdayDate(0);
+    }
+  });
 });
 
-els.loveNoteForm.addEventListener("submit", async (evt) => {
+els.eventDateInput.value = nextWeekdayDate(6);
+
+els.eventAddForm.addEventListener("submit", async (evt) => {
   evt.preventDefault();
-  const note = els.loveNoteInput.value.trim();
-  els.loveNoteForm.classList.add("hidden");
-  try {
-    await apiJson("/api/couple/profile", {
-      method: "PATCH",
-      body: JSON.stringify({ love_note: note, love_note_author: state.identity })
-    });
-    showToast("💬 Mot doux publié !");
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-    showToast("⚠️ Impossible de publier");
-  }
-});
+  const title = els.eventTitleInput.value.trim();
+  const eventDate = els.eventDateInput.value;
+  if (!title || !eventDate) return;
 
-els.sendKudosBtn.addEventListener("click", async () => {
-  els.sendKudosBtn.classList.remove("pulse");
-  void els.sendKudosBtn.offsetWidth;
-  els.sendKudosBtn.classList.add("pulse");
   try {
-    await apiJson("/api/couple/kudos", {
+    await apiJson("/api/tasks", {
       method: "POST",
       body: JSON.stringify({
-        from_partner: state.identity,
-        message: "Merci pour ce que tu fais aujourd'hui ❤️"
+        raw_input: title,
+        assignee: "both",
+        category: "date",
+        priority: 2,
+        due_label: inferDueLabelFromIso(eventDate),
+        due_date: eventDate,
+        item_type: "event",
+        event_date: eventDate,
+        event_time: els.eventTimeInput.value || "",
+        location: els.eventLocationInput.value.trim()
       })
     });
+    els.eventTitleInput.value = "";
+    els.eventLocationInput.value = "";
+    showToast("Événement ajouté");
     await refreshAll();
   } catch (err) {
     console.error(err);
@@ -1010,9 +873,7 @@ els.sendKudosBtn.addEventListener("click", async () => {
 
 els.editProfileBtn.addEventListener("click", () => {
   els.profMeName.value = state.profile.me_name || "Valentin";
-  els.profMeEmoji.value = state.profile.me_emoji || "🦊";
-  els.profWifeName.value = state.profile.wife_name || "Chérie";
-  els.profWifeEmoji.value = state.profile.wife_emoji || "🌸";
+  els.profWifeName.value = state.profile.wife_name || "Lisa";
   els.profileModal.classList.remove("hidden");
 });
 
@@ -1028,31 +889,76 @@ els.profileForm.addEventListener("submit", async (evt) => {
       method: "PATCH",
       body: JSON.stringify({
         me_name: els.profMeName.value.trim(),
-        me_emoji: els.profMeEmoji.value.trim() || "🦊",
-        wife_name: els.profWifeName.value.trim(),
-        wife_emoji: els.profWifeEmoji.value.trim() || "🌸"
+        wife_name: els.profWifeName.value.trim()
       })
     });
     els.profileModal.classList.add("hidden");
-    showToast("💑 Prénoms enregistrés");
+    showToast("Prénoms enregistrés");
     await refreshAll();
   } catch (err) {
     console.error(err);
-    showToast("⚠️ Erreur de mise à jour");
   }
+});
+
+// 1-Tap Tag Pills in Task Composer
+document.querySelectorAll(".tag-pill").forEach((pill) => {
+  pill.addEventListener("click", () => {
+    const kind = pill.dataset.tagKind;
+    const val = pill.dataset.tagValue;
+    if (kind === "assignee") {
+      state.composerTags.assignee = val;
+    } else if (kind === "category") {
+      state.composerTags.category = state.composerTags.category === val ? null : val;
+    } else if (kind === "due") {
+      state.composerTags.due_label = state.composerTags.due_label === val ? null : val;
+    } else if (kind === "recurring") {
+      state.composerTags.recurring = !state.composerTags.recurring;
+    } else if (kind === "priority") {
+      const p = Number(val);
+      state.composerTags.priority = state.composerTags.priority === p ? null : p;
+    }
+    syncTagPillsUI();
+    els.input.focus();
+  });
 });
 
 els.form.addEventListener("submit", async (evt) => {
   evt.preventDefault();
   const raw = els.input.value.trim();
   if (!raw) return;
+
+  const body = { raw_input: raw };
+  if (state.composerTags.assignee !== "both" && !/@\S+/.test(raw)) {
+    body.assignee = state.composerTags.assignee;
+  }
+  if (state.composerTags.category && !/#\S+/.test(raw)) {
+    body.category = state.composerTags.category;
+  }
+  if (state.composerTags.due_label) {
+    body.due_label = state.composerTags.due_label;
+  }
+  if (state.composerTags.recurring) {
+    body.recurring = true;
+    body.recurrence_rule = "daily";
+  }
+  if (state.composerTags.priority !== null && !/!\d/.test(raw)) {
+    body.priority = state.composerTags.priority;
+  }
+
   els.input.value = "";
-  updateParsePreview();
+  state.composerTags = {
+    assignee: "both",
+    category: null,
+    due_label: null,
+    recurring: false,
+    priority: null
+  };
+  syncTagPillsUI();
 
   try {
     await apiJson("/api/tasks", {
       method: "POST",
-      body: JSON.stringify({ raw_input: raw })
+      body: JSON.stringify(body)
     });
     await refreshAll();
   } catch (err) {
@@ -1060,9 +966,42 @@ els.form.addEventListener("submit", async (evt) => {
   }
 });
 
-els.input.addEventListener("input", () => {
-  clearTimeout(previewTimer);
-  previewTimer = setTimeout(updateParsePreview, 120);
+els.grocerySuggestionBtn.addEventListener("click", async () => {
+  if (state.staples.length === 0) return;
+  const suggestion = state.staples[state.suggestionIndex % state.staples.length];
+  const itemText = suggestion.default_qty
+    ? `${suggestion.name} (${suggestion.default_qty})`
+    : suggestion.name;
+  try {
+    await apiJson("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        raw_input: "Courses #courses @both",
+        category: "courses",
+        subtasks: [{ id: 1, text: itemText, done: false }]
+      })
+    });
+    showToast("Liste Courses créée");
+    await refreshAll();
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+els.grocerySuggestionSkip.addEventListener("click", () => {
+  state.suggestionIndex += 1;
+  renderOneSuggestion();
+});
+
+els.toggleSearchBtn.addEventListener("click", () => {
+  els.searchDrawer.classList.toggle("hidden");
+  if (!els.searchDrawer.classList.contains("hidden")) {
+    els.searchInput.focus();
+  } else if (els.searchInput.value) {
+    els.searchInput.value = "";
+    state.searchQuery = "";
+    refreshAll();
+  }
 });
 
 let searchTimer = null;
@@ -1074,19 +1013,9 @@ els.searchInput.addEventListener("input", () => {
   }, 160);
 });
 
-document.querySelectorAll(".shortcut-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const token = btn.dataset.token || "";
-    const cur = els.input.value.trim();
-    els.input.value = cur ? `${cur} ${token} ` : `${token} `;
-    els.input.focus();
-    updateParsePreview();
-  });
-});
-
-document.querySelectorAll("#view-tasks .filter-chip").forEach((chip) => {
+document.querySelectorAll(".filter-chip").forEach((chip) => {
   chip.addEventListener("click", () => {
-    document.querySelectorAll("#view-tasks .filter-chip").forEach((c) => c.classList.remove("active"));
+    document.querySelectorAll(".filter-chip").forEach((c) => c.classList.remove("active"));
     chip.classList.add("active");
     state.filterType = chip.dataset.filterType || "all";
     state.filterValue = chip.dataset.filterValue || "all";
@@ -1099,94 +1028,18 @@ els.toggleCompletedBtn.addEventListener("click", () => {
   renderTasks();
 });
 
-els.clearCompletedBtn.addEventListener("click", async () => {
-  try {
-    const res = await apiJson("/api/tasks/clear-completed", { method: "POST" });
-    showToast(`🗑 ${res.cleared_count} tâche(s) supprimée(s)`);
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-    showToast("⚠️ Erreur lors de la suppression");
-  }
-});
-
-// Groceries events
-els.groceryQuickForm.addEventListener("submit", async (evt) => {
-  evt.preventDefault();
-  const val = els.groceryQuickInput.value.trim();
-  if (!val) return;
-  const raw = val.includes("#") ? val : `${val} #courses`;
-  els.groceryQuickInput.value = "";
-  try {
-    await apiJson("/api/tasks", { method: "POST", body: JSON.stringify({ raw_input: raw }) });
-    showToast("🛒 Article ajouté au panier");
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-    showToast("⚠️ Impossible d'ajouter l'article");
-  }
-});
-
-els.toggleNewStapleBtn.addEventListener("click", () => {
-  els.newStapleForm.classList.toggle("hidden");
-});
-
-els.newStapleForm.addEventListener("submit", async (evt) => {
-  evt.preventDefault();
-  try {
-    await apiJson("/api/groceries/staples", {
-      method: "POST",
-      body: JSON.stringify({
-        name: els.stapleNameInput.value.trim(),
-        default_qty: els.stapleQtyInput.value.trim(),
-        aisle: els.stapleAisleInput.value,
-        emoji: els.stapleEmojiInput.value.trim() || "🛒"
-      })
-    });
-    els.newStapleForm.reset();
-    els.stapleEmojiInput.value = "🛒";
-    els.newStapleForm.classList.add("hidden");
-    showToast("⭐ Favori enregistré");
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-    showToast("⚠️ Erreur lors de l'enregistrement");
-  }
-});
-
-document.querySelectorAll("#stapleAisleFilters .filter-chip").forEach((chip) => {
-  chip.addEventListener("click", () => {
-    document.querySelectorAll("#stapleAisleFilters .filter-chip").forEach((c) => c.classList.remove("active"));
-    chip.classList.add("active");
-    state.stapleAisle = chip.dataset.aisle || "all";
-    renderGroceriesView();
-  });
-});
-
-els.clearGroceriesBtn.addEventListener("click", async () => {
-  try {
-    const res = await apiJson("/api/tasks/clear-completed?category=courses", { method: "POST" });
-    showToast(`🛍️ ${res.cleared_count} article(s) vidé(s)`);
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-    showToast("⚠️ Erreur lors du vidage");
-  }
-});
-
-// Routines events
 els.resetRoutinesBtn.addEventListener("click", async () => {
-  try {
-    const res = await apiJson("/api/routines/reset-daily", { method: "POST" });
-    showToast(`🔄 ${res.reset_count} routine(s) réinitialisée(s)`);
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-    showToast("⚠️ Erreur lors de la réinitialisation");
-  }
+  const res = await apiJson("/api/routines/reset-daily", { method: "POST" });
+  showToast(`${res.reset_count} récurrente(s) relancée(s)`);
+  await refreshAll();
 });
 
-// Drawer events
+els.clearCompletedBtn.addEventListener("click", async () => {
+  const res = await apiJson("/api/tasks/clear-completed", { method: "POST" });
+  showToast(`${res.cleared_count} tâche(s) effacée(s)`);
+  await refreshAll();
+});
+
 els.closeDrawerBtn.addEventListener("click", closeTaskDrawer);
 els.taskDrawer.addEventListener("click", (evt) => {
   if (evt.target === els.taskDrawer) closeTaskDrawer();
@@ -1195,28 +1048,26 @@ els.taskDrawer.addEventListener("click", (evt) => {
 els.taskEditForm.addEventListener("submit", async (evt) => {
   evt.preventDefault();
   const id = Number(els.editTaskId.value);
-  try {
-    await apiJson(`/api/tasks/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        title: els.editTitle.value.trim(),
-        notes: els.editNotes.value.trim(),
-        assignee: els.editAssignee.value,
-        category: els.editCategory.value,
-        priority: Number(els.editPriority.value),
-        due_label: els.editDueLabel.value,
-        recurrence_rule: els.editRecurrence.value,
-        quantity: els.editQuantity.value.trim(),
-        aisle: els.editAisle.value
-      })
-    });
-    closeTaskDrawer();
-    showToast("💾 Tâche mise à jour");
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-    showToast("⚠️ Impossible d'enregistrer");
-  }
+  await apiJson(`/api/tasks/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      title: els.editTitle.value.trim(),
+      notes: els.editNotes.value.trim(),
+      item_type: els.editItemType.value,
+      assignee: els.editAssignee.value,
+      category: els.editCategory.value,
+      priority: Number(els.editPriority.value),
+      due_label: els.editDueLabel.value,
+      recurrence_rule: els.editRecurrence.value,
+      event_date: els.editEventDate.value,
+      event_time: els.editEventTime.value,
+      location: els.editLocation.value.trim(),
+      quantity: els.editQuantity.value.trim()
+    })
+  });
+  closeTaskDrawer();
+  showToast("Enregistré");
+  await refreshAll();
 });
 
 els.addSubtaskBtn.addEventListener("click", async () => {
@@ -1224,17 +1075,12 @@ els.addSubtaskBtn.addEventListener("click", async () => {
   const text = els.newSubtaskInput.value.trim();
   if (!text) return;
   els.newSubtaskInput.value = "";
-  try {
-    const updated = await apiJson(`/api/tasks/${id}/subtasks`, {
-      method: "POST",
-      body: JSON.stringify({ text })
-    });
-    renderDrawerSubtasks(updated);
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-    showToast("⚠️ Erreur sous-tâche");
-  }
+  const updated = await apiJson(`/api/tasks/${id}/subtasks`, {
+    method: "POST",
+    body: JSON.stringify({ text })
+  });
+  renderDrawerSubtasks(updated);
+  await refreshAll();
 });
 
 els.newSubtaskInput.addEventListener("keydown", (evt) => {
@@ -1250,7 +1096,6 @@ els.drawerDeleteBtn.addEventListener("click", async () => {
   await deleteTask(id);
 });
 
-// Install Modal
 els.installHelpBtn.addEventListener("click", () => els.installModal.classList.remove("hidden"));
 els.closeModalBtn.addEventListener("click", () => els.installModal.classList.add("hidden"));
 els.installModal.addEventListener("click", (evt) => {
@@ -1263,6 +1108,7 @@ if ("serviceWorker" in navigator) {
 
 applyTheme(state.theme);
 applyIdentity(state.identity);
+syncTagPillsUI();
 refreshAll();
 connectWebSocket();
 refreshHealth();

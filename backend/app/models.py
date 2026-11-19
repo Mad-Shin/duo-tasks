@@ -39,6 +39,10 @@ class TaskCreate(BaseModel):
     recurrence_rule: Optional[str] = Field(default=None, max_length=20)
     quantity: Optional[str] = Field(default=None, max_length=40)
     aisle: Optional[str] = Field(default=None, max_length=60)
+    item_type: Optional[str] = Field(default="task", max_length=16)
+    event_date: Optional[str] = Field(default=None, max_length=20)
+    event_time: Optional[str] = Field(default=None, max_length=16)
+    location: Optional[str] = Field(default=None, max_length=120)
     subtasks: Optional[list[SubtaskItem]] = None
 
 
@@ -56,6 +60,10 @@ class TaskUpdate(BaseModel):
     recurrence_rule: Optional[str] = Field(default=None, max_length=20)
     quantity: Optional[str] = Field(default=None, max_length=40)
     aisle: Optional[str] = Field(default=None, max_length=60)
+    item_type: Optional[str] = Field(default=None, max_length=16)
+    event_date: Optional[str] = Field(default=None, max_length=20)
+    event_time: Optional[str] = Field(default=None, max_length=16)
+    location: Optional[str] = Field(default=None, max_length=120)
     subtasks: Optional[list[SubtaskItem]] = None
 
 
@@ -76,6 +84,10 @@ class TaskOut(BaseModel):
     recurrence_rule: str = "none"
     quantity: str = ""
     aisle: str = ""
+    item_type: str = "task"
+    event_date: str = ""
+    event_time: str = ""
+    location: str = ""
     subtasks: list[SubtaskItem] = Field(default_factory=list)
     created_at: str
     updated_at: str = ""

@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>DuoTasks — Tâches, Courses &amp; Moments à Deux</title>
+  <title>DuoTasks</title>
 
   <!-- PWA & Home Screen App Meta (Android + iPhone Safari) -->
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#dc4c3e" />
+  <meta name="theme-color" content="#f6f6f8" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="DuoTasks" />
@@ -21,278 +21,182 @@
     <header class="topbar">
       <div class="brand">
         <img src="/icon.svg" alt="DuoTasks" class="brand-icon" />
-        <div>
+        <div class="brand-text">
           <h1>DuoTasks</h1>
-          <span class="subtitle" id="taskCounter">Chargement...</span>
+          <div class="status-line">
+            <span class="sync-dot" id="syncDot"></span>
+            <span class="subtitle" id="taskCounter">0 à faire</span>
+            <span class="sync-sep">·</span>
+            <span class="subtitle" id="syncText">Sync...</span>
+          </div>
         </div>
       </div>
 
       <div class="topbar-actions">
-        <div class="identity-switch" role="group" aria-label="Qui utilise ce téléphone">
-          <button type="button" class="id-btn active" id="idBtnMe" data-identity="me">🦊 Moi</button>
-          <button type="button" class="id-btn" id="idBtnWife" data-identity="wife">🌸 Elle</button>
+        <div class="identity-switch" role="group" aria-label="Profil actif">
+          <button type="button" class="id-btn active" id="idBtnMe" data-identity="me">Valentin</button>
+          <button type="button" class="id-btn" id="idBtnWife" data-identity="wife">Lisa</button>
         </div>
-        <div class="sync-pill" id="syncPill" title="Synchronisation WebSocket temps réel">
-          <span class="sync-dot" id="syncDot"></span>
-          <span id="syncText">Sync...</span>
-        </div>
-        <button type="button" class="btn-icon btn-theme" id="themeToggleBtn" aria-label="Changer le thème" title="Mode sombre / clair">
-          🌙
+        <button type="button" class="icon-btn" id="editProfileBtn" aria-label="Prénoms" title="Prénoms">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
-        <button type="button" class="btn-icon" id="installHelpBtn" aria-label="Installer sur l'écran d'accueil">
-          + Icône
+        <button type="button" class="icon-btn" id="themeToggleBtn" aria-label="Thème" title="Changer le thème">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <button type="button" class="icon-btn" id="installHelpBtn" aria-label="Installer sur l'écran d'accueil" title="Ajouter sur l'écran d'accueil">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
         </button>
       </div>
     </header>
 
-    <!-- Cozy Couple Banner -->
-    <section class="couple-banner" aria-label="Espace couple">
-      <div class="couple-note-row">
-        <div class="love-note-display">
-          <span class="love-note-quote" id="loveNoteText">💬 On fait quoi de beau ce soir ? ✨</span>
-          <span class="love-note-meta" id="loveNoteAuthorLabel"></span>
+    <!-- Centered Primary Add Bar (Task or High-Level Event) -->
+    <section class="hero-composer">
+      <div class="mode-switch-wrap">
+        <div class="mode-switch" role="tablist" aria-label="Type d'ajout">
+          <button type="button" class="mode-btn active" id="modeTaskBtn" data-mode="task">Tâche</button>
+          <button type="button" class="mode-btn" id="modeEventBtn" data-mode="event">Événement</button>
         </div>
-        <button type="button" class="btn-mini-ghost" id="toggleLoveNoteBtn" title="Modifier le mot doux">✏️ Mot doux</button>
       </div>
 
-      <form id="loveNoteForm" class="love-note-form hidden" autocomplete="off">
-        <input type="text" id="loveNoteInput" placeholder="Un petit mot pour l'autre..." maxlength="200" />
-        <button type="submit" class="btn-small">Publier</button>
-      </form>
-
-      <div class="couple-actions-row">
-        <button type="button" class="btn-kudos" id="sendKudosBtn">
-          <span>💌 Merci</span>
-          <span class="kudos-count" id="kudosCountBadge">❤️ 0</span>
-        </button>
-        <span class="karma-pill" id="karmaPill">✨ Karma Duo : <strong id="karmaScore">0</strong> pts</span>
-        <button type="button" class="btn-mini-ghost" id="editProfileBtn">⚙️ Prénoms</button>
-      </div>
-    </section>
-
-    <nav class="tab-nav" aria-label="Navigation principale">
-      <button type="button" class="tab-btn active" data-tab="tasks">
-        <span class="tab-ico">📋</span>
-        <span class="tab-lbl">Tâches</span>
-      </button>
-      <button type="button" class="tab-btn" data-tab="groceries">
-        <span class="tab-ico">🛒</span>
-        <span class="tab-lbl">Courses</span>
-        <span class="tab-badge hidden" id="groceriesBadge">0</span>
-      </button>
-      <button type="button" class="tab-btn" data-tab="routines">
-        <span class="tab-ico">🔁</span>
-        <span class="tab-lbl">Routines</span>
-      </button>
-      <button type="button" class="tab-btn" data-tab="stats">
-        <span class="tab-ico">📊</span>
-        <span class="tab-lbl">Équilibre</span>
-      </button>
-    </nav>
-
-    <!-- VIEW 1: TASKS (Todoist View) -->
-    <section class="view-pane" id="view-tasks">
-      <section class="quick-add-card">
+      <!-- TASK COMPOSER -->
+      <div class="composer-card" id="taskComposerCard">
         <form id="quickAddForm" autocomplete="off">
-          <div class="input-row">
+          <div class="composer-row">
+            <span class="composer-plus">+</span>
             <input
               type="text"
               id="quickAddInput"
-              placeholder="Ex: Resto vendredi 20h @both #date !2 ou Lait 2L @wife #courses"
+              placeholder="Ajouter une tâche… (ex: Réserver resto @lisa)"
               maxlength="280"
               required
             />
-            <button type="submit" class="btn-primary">Ajouter</button>
+            <button type="submit" class="btn-add">Ajouter</button>
           </div>
 
-          <div class="quick-shortcuts">
-            <button type="button" class="shortcut-btn" data-token="@wife">@wife</button>
-            <button type="button" class="shortcut-btn" data-token="@me">@me</button>
-            <button type="button" class="shortcut-btn" data-token="@both">@both</button>
-            <button type="button" class="shortcut-btn" data-token="#courses">#courses</button>
-            <button type="button" class="shortcut-btn" data-token="#maison">#maison</button>
-            <button type="button" class="shortcut-btn" data-token="#date">🥂 #date</button>
-            <button type="button" class="shortcut-btn" data-token="#cadeaux">🎁 #cadeaux</button>
-            <button type="button" class="shortcut-btn" data-token="demain">demain</button>
-            <button type="button" class="shortcut-btn" data-token="weekend">weekend</button>
-            <button type="button" class="shortcut-btn" data-token="tous les jours">🔁 quotidien</button>
-            <button type="button" class="shortcut-btn" data-token="!1">!1</button>
-          </div>
-
-          <div class="parse-preview" id="parsePreview" aria-live="polite">
-            <span class="preview-label">Aperçu :</span>
-            <span class="chip chip-assignee" id="prevAssignee">@both</span>
-            <span class="chip chip-category" id="prevCategory">#inbox</span>
-            <span class="chip chip-due" id="prevDue">today</span>
-            <span class="chip chip-prio" id="prevPrio">P3</span>
-            <span class="chip chip-recurring hidden" id="prevRecurring">🔁 quotidien</span>
-            <span class="chip chip-qty hidden" id="prevQty"></span>
-            <span class="chip chip-aisle hidden" id="prevAisle"></span>
+          <div class="tag-picker" id="tagPicker">
+            <div class="tag-group" role="group" aria-label="Pour qui">
+              <button type="button" class="tag-pill active" data-tag-kind="assignee" data-tag-value="both">Duo</button>
+              <button type="button" class="tag-pill" id="tagPillMe" data-tag-kind="assignee" data-tag-value="me">Valentin</button>
+              <button type="button" class="tag-pill" id="tagPillWife" data-tag-kind="assignee" data-tag-value="wife">Lisa</button>
+            </div>
+            <span class="tag-sep"></span>
+            <div class="tag-group" role="group" aria-label="Catégorie">
+              <button type="button" class="tag-pill" data-tag-kind="category" data-tag-value="maison">#maison</button>
+              <button type="button" class="tag-pill" data-tag-kind="category" data-tag-value="courses">#courses</button>
+              <button type="button" class="tag-pill" data-tag-kind="category" data-tag-value="date">#date</button>
+              <button type="button" class="tag-pill" data-tag-kind="category" data-tag-value="admin">#admin</button>
+            </div>
+            <span class="tag-sep"></span>
+            <div class="tag-group" role="group" aria-label="Quand">
+              <button type="button" class="tag-pill" data-tag-kind="due" data-tag-value="tomorrow">Demain</button>
+              <button type="button" class="tag-pill" data-tag-kind="due" data-tag-value="weekend">Week-end</button>
+              <button type="button" class="tag-pill" data-tag-kind="recurring" data-tag-value="daily">↻ Quotidien</button>
+              <button type="button" class="tag-pill" data-tag-kind="priority" data-tag-value="1">! Urgent</button>
+            </div>
           </div>
         </form>
-      </section>
-
-      <div class="search-bar-row">
-        <input type="search" id="taskSearchInput" placeholder="🔍 Rechercher une tâche, note, #date ou #courses..." />
       </div>
 
-      <nav class="filters" aria-label="Filtres couple">
-        <button type="button" class="filter-chip active" data-filter-type="all" data-filter-value="all">Tous</button>
-        <button type="button" class="filter-chip" id="filterChipMe" data-filter-type="assignee" data-filter-value="me">🦊 Moi</button>
-        <button type="button" class="filter-chip" id="filterChipWife" data-filter-type="assignee" data-filter-value="wife">🌸 Elle</button>
-        <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="both">💑 Duo</button>
+      <!-- EVENT COMPOSER (High-Level Invites & Calendar Sync) -->
+      <div class="composer-card hidden" id="eventComposerCard">
+        <form id="eventAddForm" autocomplete="off">
+          <div class="event-presets" aria-label="Modèles rapides">
+            <button type="button" class="preset-pill" data-preset="Mariage ">💍 Mariage</button>
+            <button type="button" class="preset-pill" data-preset="Dîner ">🍽️ Dîner</button>
+            <button type="button" class="preset-pill" data-preset="Soirée ">🥂 Soirée</button>
+            <button type="button" class="preset-pill" data-preset="Week-end ">✈️ Week-end</button>
+            <button type="button" class="preset-pill" data-preset="Anniversaire ">🎂 Anniversaire</button>
+          </div>
+
+          <div class="composer-row">
+            <span class="composer-plus">📅</span>
+            <input
+              type="text"
+              id="eventTitleInput"
+              placeholder="Nom de l'événement (ex: Mariage Paul & Marie)"
+              maxlength="200"
+              required
+            />
+            <button type="submit" class="btn-add">Ajouter</button>
+          </div>
+
+          <div class="event-date-row">
+            <button type="button" class="date-chip" data-date-offset="0">Aujourd'hui</button>
+            <button type="button" class="date-chip" data-date-offset="1">Demain</button>
+            <button type="button" class="date-chip active" data-date-preset="sat">Samedi</button>
+            <button type="button" class="date-chip" data-date-preset="sun">Dimanche</button>
+            <button type="button" class="date-chip" data-date-offset="7">+7 jours</button>
+          </div>
+
+          <div class="event-fields-row">
+            <input type="date" id="eventDateInput" required />
+            <input type="time" id="eventTimeInput" value="19:30" />
+            <input type="text" id="eventLocationInput" placeholder="Lieu (optionnel)" maxlength="120" />
+          </div>
+        </form>
+      </div>
+
+      <!-- One small living grocery suggestion pill (only when no active Courses task exists) -->
+      <div class="suggestion-row hidden" id="grocerySuggestionRow">
+        <button type="button" class="suggestion-pill" id="grocerySuggestionBtn">+ Liste Courses</button>
+        <button type="button" class="suggestion-skip" id="grocerySuggestionSkip" title="Autre idée" aria-label="Autre suggestion">↻</button>
+      </div>
+    </section>
+
+    <!-- Quiet Filter & Search Strip -->
+    <div class="controls-strip">
+      <nav class="filters" aria-label="Filtres">
+        <button type="button" class="filter-chip active" data-filter-type="all" data-filter-value="all">Tout</button>
+        <button type="button" class="filter-chip" id="filterChipMe" data-filter-type="assignee" data-filter-value="me">Valentin</button>
+        <button type="button" class="filter-chip" id="filterChipWife" data-filter-type="assignee" data-filter-value="wife">Lisa</button>
+        <button type="button" class="filter-chip" data-filter-type="item_type" data-filter-value="event">Événements</button>
         <button type="button" class="filter-chip" data-filter-type="due" data-filter-value="today">Aujourd'hui</button>
         <button type="button" class="filter-chip" data-filter-type="due" data-filter-value="tomorrow">Demain</button>
-        <button type="button" class="filter-chip" data-filter-type="due" data-filter-value="weekend">Week-end</button>
-        <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="date">🥂 #date</button>
-        <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="cadeaux">🎁 #cadeaux</button>
-        <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="maison">#maison</button>
         <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="courses">#courses</button>
-        <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="daily">#daily</button>
+        <button type="button" class="filter-chip" data-filter-type="recurring" data-filter-value="true">Récurrentes</button>
       </nav>
 
-      <main class="task-sections">
-        <section aria-labelledby="activeHeading">
-          <div class="section-header section-header-row">
-            <h2 id="activeHeading">À faire</h2>
-            <button type="button" class="btn-mini-ghost" id="groupModeToggleBtn">Vue : Par échéance</button>
-          </div>
-          <ul class="task-list" id="activeTaskList"></ul>
-          <div class="empty-state hidden" id="emptyState">
-            Rien en attente ici. Ajoute une tâche ci-dessus ou lance un pack <strong>🥂 Date Night &amp; Apéro</strong> dans <strong>Routines</strong>.
-          </div>
-        </section>
+      <button type="button" class="icon-btn" id="toggleSearchBtn" aria-label="Rechercher" title="Rechercher">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      </button>
+    </div>
 
-        <section class="completed-section" aria-labelledby="completedHeading">
-          <div class="completed-header">
-            <button type="button" class="section-toggle" id="toggleCompletedBtn">
-              <span id="completedHeading">Terminées (0)</span>
-              <span id="completedChevron">▾</span>
-            </button>
-            <button type="button" class="btn-clear-completed hidden" id="clearCompletedBtn">Vider terminées</button>
+    <div class="search-drawer hidden" id="searchDrawer">
+      <input type="search" id="taskSearchInput" placeholder="Rechercher une tâche, un événement ou un lieu…" />
+    </div>
+
+    <!-- Single Unified List -->
+    <main class="task-sections">
+      <div class="surface-list-wrap">
+        <ul class="task-list" id="activeTaskList"></ul>
+        <div class="empty-state hidden" id="emptyState">
+          Rien à faire. Ajoutez une tâche ou un événement juste au-dessus.
+        </div>
+      </div>
+
+      <section class="completed-section" aria-labelledby="completedHeading">
+        <div class="completed-header">
+          <button type="button" class="section-toggle" id="toggleCompletedBtn">
+            <span id="completedHeading">Terminées (0)</span>
+            <span id="completedChevron">▾</span>
+          </button>
+          <div class="completed-actions">
+            <button type="button" class="btn-text hidden" id="resetRoutinesBtn">Relancer récurrentes</button>
+            <button type="button" class="btn-text danger hidden" id="clearCompletedBtn">Effacer</button>
           </div>
+        </div>
+        <div class="surface-list-wrap hidden" id="completedWrap">
           <ul class="task-list" id="completedTaskList"></ul>
-        </section>
-      </main>
-    </section>
-
-    <!-- VIEW 2: GROCERIES (Supermarket Mode) -->
-    <section class="view-pane hidden" id="view-groceries">
-      <div class="card">
-        <div class="card-head">
-          <div>
-            <h2>🛒 Ajout Rapide Courses</h2>
-            <p class="muted-text">Tape un article (ex: <code>Burrata x2 !1</code>) ou clique sur un favori ci-dessous.</p>
-          </div>
         </div>
-        <form id="groceryQuickForm" class="input-row" autocomplete="off">
-          <input type="text" id="groceryQuickInput" placeholder="Ajouter au panier (ex: Avocats x2, Vin blanc)..." maxlength="200" required />
-          <button type="submit" class="btn-primary">+ Panier</button>
-        </form>
-      </div>
-
-      <div class="card">
-        <div class="card-head">
-          <h2>⭐ Garde-Manger (Ajout 1-Tap)</h2>
-          <button type="button" class="btn-small" id="toggleNewStapleBtn">+ Favori</button>
-        </div>
-
-        <form id="newStapleForm" class="new-staple-form hidden" autocomplete="off">
-          <input type="text" id="stapleNameInput" placeholder="Article (ex: Mozzarella)" maxlength="80" required />
-          <input type="text" id="stapleQtyInput" placeholder="Qté (ex: x2)" maxlength="30" />
-          <select id="stapleAisleInput">
-            <option value="Frais & Laitier">Frais &amp; Laitier</option>
-            <option value="Fruits & Légumes">Fruits &amp; Légumes</option>
-            <option value="Boulangerie">Boulangerie</option>
-            <option value="Viande & Poisson">Viande &amp; Poisson</option>
-            <option value="Épicerie">Épicerie</option>
-            <option value="Boissons">Boissons</option>
-            <option value="Maison & Hygiène">Maison &amp; Hygiène</option>
-            <option value="Autre">Autre</option>
-          </select>
-          <input type="text" id="stapleEmojiInput" placeholder="Emoji" value="🛒" maxlength="6" />
-          <button type="submit" class="btn-primary">Enregistrer</button>
-        </form>
-
-        <div class="filters" id="stapleAisleFilters">
-          <button type="button" class="filter-chip active" data-aisle="all">Tous rayons</button>
-          <button type="button" class="filter-chip" data-aisle="Frais & Laitier">🥛 Frais</button>
-          <button type="button" class="filter-chip" data-aisle="Fruits & Légumes">🍅 Fruits &amp; Lég.</button>
-          <button type="button" class="filter-chip" data-aisle="Boulangerie">🥖 Boulangerie</button>
-          <button type="button" class="filter-chip" data-aisle="Viande & Poisson">🍗 Viande/Poiss.</button>
-          <button type="button" class="filter-chip" data-aisle="Épicerie">🍝 Épicerie</button>
-          <button type="button" class="filter-chip" data-aisle="Boissons">🥂 Boissons</button>
-          <button type="button" class="filter-chip" data-aisle="Maison & Hygiène">🧻 Hygiène</button>
-        </div>
-
-        <div class="staples-grid" id="staplesGrid"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-head">
-          <h2>🛍️ Panier par Rayon</h2>
-          <button type="button" class="btn-clear-completed hidden" id="clearGroceriesBtn">Vider achetés</button>
-        </div>
-        <div id="groceriesByAisle"></div>
-        <div class="empty-state hidden" id="groceriesEmptyState">
-          Votre liste de courses est vide. Sélectionnez vos essentiels au-dessus.
-        </div>
-      </div>
-    </section>
-
-    <!-- VIEW 3: ROUTINES & PACKS -->
-    <section class="view-pane hidden" id="view-routines">
-      <div class="card">
-        <div class="card-head">
-          <div>
-            <h2>🔁 Habitudes &amp; Routines</h2>
-            <p class="muted-text" id="routinesSummary">Réinitialisez les routines terminées d'un geste.</p>
-          </div>
-          <button type="button" class="btn-primary" id="resetRoutinesBtn">🔄 Réinitialiser</button>
-        </div>
-        <ul class="task-list" id="routinesList"></ul>
-        <div class="empty-state hidden" id="routinesEmptyState">
-          Aucune tâche récurrente pour le moment. Ajoutez <code>tous les jours</code> ou <code>hebdo</code> à une tâche, ou appliquez un pack ci-dessous.
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-head">
-          <div>
-            <h2>📦 Packs Couple 1-Tap</h2>
-            <p class="muted-text">Chargez une checklist prête à l'emploi sans doublons.</p>
-          </div>
-        </div>
-        <div class="packs-grid" id="packsGrid"></div>
-      </div>
-    </section>
-
-    <!-- VIEW 4: COUPLE BALANCE & ACTIVITY -->
-    <section class="view-pane hidden" id="view-stats">
-      <div class="kpi-grid" id="kpiGrid"></div>
-
-      <div class="card">
-        <h2>⚖️ Équilibre Couple</h2>
-        <div id="balanceBars"></div>
-      </div>
-
-      <div class="card">
-        <h2>🏷️ Répartition par Catégorie</h2>
-        <div id="categoryBars"></div>
-      </div>
-
-      <div class="card">
-        <h2>🕒 Journal d'Activité Récent</h2>
-        <ul class="activity-list" id="activityFeed"></ul>
-      </div>
-    </section>
+      </section>
+    </main>
   </div>
 
-  <!-- Task Detail Drawer / Modal -->
+  <!-- Task / Event Detail Drawer -->
   <div class="modal-backdrop hidden" id="taskDrawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitleHeading">
-    <div class="modal-card drawer-card">
+    <div class="modal-card">
       <div class="modal-header">
-        <h3 id="drawerTitleHeading">Détails de la tâche</h3>
+        <h3 id="drawerTitleHeading">Détails</h3>
         <button type="button" class="btn-close" id="closeDrawerBtn" aria-label="Fermer">✕</button>
       </div>
       <form id="taskEditForm" class="drawer-form">
@@ -303,39 +207,44 @@
         </label>
 
         <label class="field-group">
-          <span>Notes / Précisions</span>
-          <textarea id="editNotes" rows="2" maxlength="2000" placeholder="Marque préférée, adresse du resto, remarque..."></textarea>
+          <span>Notes</span>
+          <textarea id="editNotes" rows="2" maxlength="2000" placeholder="Ajouter une note…"></textarea>
         </label>
 
         <div class="field-grid">
           <label class="field-group">
-            <span>Assigné à</span>
-            <select id="editAssignee">
-              <option value="both">💑 Nous deux (@both)</option>
-              <option value="me">🦊 Moi (@me)</option>
-              <option value="wife">🌸 Elle (@wife)</option>
+            <span>Type</span>
+            <select id="editItemType">
+              <option value="task">Tâche</option>
+              <option value="event">Événement</option>
             </select>
           </label>
           <label class="field-group">
-            <span>Catégorie</span>
+            <span>Pour</span>
+            <select id="editAssignee">
+              <option value="both">Valentin &amp; Lisa</option>
+              <option value="me">Valentin</option>
+              <option value="wife">Lisa</option>
+            </select>
+          </label>
+          <label class="field-group">
+            <span>Tag</span>
             <select id="editCategory">
-              <option value="inbox">#inbox</option>
-              <option value="courses">#courses</option>
-              <option value="maison">#maison</option>
-              <option value="daily">#daily</option>
-              <option value="date">🥂 #date</option>
-              <option value="cadeaux">🎁 #cadeaux</option>
-              <option value="projets">🏡 #projets</option>
-              <option value="weekend">#weekend</option>
-              <option value="admin">#admin</option>
+              <option value="inbox">inbox</option>
+              <option value="maison">maison</option>
+              <option value="courses">courses</option>
+              <option value="date">date</option>
+              <option value="admin">admin</option>
+              <option value="daily">daily</option>
+              <option value="weekend">weekend</option>
             </select>
           </label>
           <label class="field-group">
             <span>Priorité</span>
             <select id="editPriority">
-              <option value="1">P1 — Urgente</option>
-              <option value="2">P2 — Haute</option>
-              <option value="3">P3 — Normale</option>
+              <option value="1">Haute (P1)</option>
+              <option value="2">Moyenne (P2)</option>
+              <option value="3">Normale (P3)</option>
             </select>
           </label>
           <label class="field-group">
@@ -353,108 +262,101 @@
             </select>
           </label>
           <label class="field-group">
-            <span>Récurrence</span>
+            <span>Répéter</span>
             <select id="editRecurrence">
-              <option value="none">Aucune</option>
-              <option value="daily">Quotidienne</option>
-              <option value="weekly">Hebdomadaire</option>
-              <option value="monthly">Mensuelle</option>
+              <option value="none">Jamais</option>
+              <option value="daily">Tous les jours</option>
+              <option value="weekly">Toutes les semaines</option>
+              <option value="monthly">Tous les mois</option>
             </select>
-          </label>
-          <label class="field-group">
-            <span>Quantité</span>
-            <input type="text" id="editQuantity" maxlength="40" placeholder="Ex: 2L, x12" />
           </label>
         </div>
 
-        <label class="field-group">
-          <span>Rayon (Courses)</span>
-          <select id="editAisle">
-            <option value="">Aucun</option>
-            <option value="Frais & Laitier">Frais &amp; Laitier</option>
-            <option value="Fruits & Légumes">Fruits &amp; Légumes</option>
-            <option value="Boulangerie">Boulangerie</option>
-            <option value="Viande & Poisson">Viande &amp; Poisson</option>
-            <option value="Épicerie">Épicerie</option>
-            <option value="Boissons">Boissons</option>
-            <option value="Maison & Hygiène">Maison &amp; Hygiène</option>
-            <option value="Autre">Autre</option>
-          </select>
-        </label>
+        <div class="field-grid" id="drawerEventFields">
+          <label class="field-group">
+            <span>Date</span>
+            <input type="date" id="editEventDate" />
+          </label>
+          <label class="field-group">
+            <span>Heure</span>
+            <input type="time" id="editEventTime" />
+          </label>
+        </div>
+
+        <div class="field-grid">
+          <label class="field-group">
+            <span>Lieu</span>
+            <input type="text" id="editLocation" maxlength="120" placeholder="Optionnel" />
+          </label>
+          <label class="field-group">
+            <span>Quantité</span>
+            <input type="text" id="editQuantity" maxlength="40" placeholder="Ex: 2L, x6" />
+          </label>
+        </div>
 
         <div class="subtasks-box">
-          <h4>Sous-tâches / Checklist</h4>
+          <h4>Sous-tâches / Articles</h4>
           <ul class="subtask-list" id="drawerSubtaskList"></ul>
-          <div class="input-row">
-            <input type="text" id="newSubtaskInput" placeholder="+ Ajouter une étape..." maxlength="200" />
-            <button type="button" class="btn-small" id="addSubtaskBtn">Ajouter</button>
+          <div class="composer-row compact">
+            <input type="text" id="newSubtaskInput" placeholder="Ajouter un élément…" maxlength="200" />
+            <button type="button" class="btn-soft" id="addSubtaskBtn">Ajouter</button>
           </div>
         </div>
 
         <div class="drawer-footer">
-          <button type="button" class="btn-danger" id="drawerDeleteBtn">Supprimer</button>
-          <button type="submit" class="btn-primary">Enregistrer</button>
+          <button type="button" class="btn-text danger" id="drawerDeleteBtn">Supprimer</button>
+          <button type="submit" class="btn-add">Enregistrer</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Couple Profile Customization Modal -->
+  <!-- Profile Modal -->
   <div class="modal-backdrop hidden" id="profileModal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="profileModalTitle">Personnaliser votre Duo 💑</h3>
+        <h3 id="profileModalTitle">Prénoms</h3>
         <button type="button" class="btn-close" id="closeProfileModalBtn" aria-label="Fermer">✕</button>
       </div>
       <form id="profileForm" class="drawer-form">
         <div class="field-grid">
           <label class="field-group">
-            <span>Prénom (@me)</span>
+            <span>Prénom 1 (@me)</span>
             <input type="text" id="profMeName" maxlength="32" required />
           </label>
           <label class="field-group">
-            <span>Emoji (@me)</span>
-            <input type="text" id="profMeEmoji" maxlength="8" required />
-          </label>
-          <label class="field-group">
-            <span>Prénom (@wife)</span>
+            <span>Prénom 2 (@wife)</span>
             <input type="text" id="profWifeName" maxlength="32" required />
-          </label>
-          <label class="field-group">
-            <span>Emoji (@wife)</span>
-            <input type="text" id="profWifeEmoji" maxlength="8" required />
           </label>
         </div>
         <div class="drawer-footer">
-          <span class="muted-text">Synchro sur les deux téléphones</span>
-          <button type="submit" class="btn-primary">Enregistrer</button>
+          <span></span>
+          <button type="submit" class="btn-add">Enregistrer</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Modal d'installation iPhone & Android -->
+  <!-- Install Modal -->
   <div class="modal-backdrop hidden" id="installModal" role="dialog" aria-modal="true" aria-labelledby="installTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="installTitle">Installer l'icône sans App Store</h3>
+        <h3 id="installTitle">Installer sur l'écran d'accueil</h3>
         <button type="button" class="btn-close" id="closeModalBtn" aria-label="Fermer">✕</button>
       </div>
       <div class="modal-body">
         <div class="device-box">
-          <h4>iPhone (Safari uniquement)</h4>
+          <h4>iPhone (Safari)</h4>
           <ol>
-            <li>Ouvre cette URL dans <strong>Safari</strong>.</li>
-            <li>Appuie sur le bouton <strong>Partager</strong> (carré avec flèche vers le haut).</li>
-            <li>Choisis <strong>Sur l'écran d'accueil</strong> puis <strong>Ajouter</strong>.</li>
+            <li>Appuyez sur <strong>Partager</strong> en bas de Safari.</li>
+            <li>Choisissez <strong>Sur l'écran d'accueil</strong> puis <strong>Ajouter</strong>.</li>
           </ol>
         </div>
         <div class="device-box">
           <h4>Android (Chrome)</h4>
           <ol>
-            <li>Ouvre cette URL dans <strong>Chrome</strong>.</li>
-            <li>Appuie sur le menu <strong>⋮</strong> en haut à droite.</li>
-            <li>Choisis <strong>Ajouter à l'écran d'accueil</strong> / <strong>Installer l'application</strong>.</li>
+            <li>Ouvrez le menu <strong>⋮</strong> en haut à droite.</li>
+            <li>Choisissez <strong>Installer l'application</strong>.</li>
           </ol>
         </div>
       </div>

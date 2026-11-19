@@ -150,6 +150,10 @@ def init_db() -> None:
             quantity TEXT NOT NULL DEFAULT '',
             aisle TEXT NOT NULL DEFAULT '',
             subtasks_json TEXT NOT NULL DEFAULT '[]',
+            item_type TEXT NOT NULL DEFAULT 'task',
+            event_date TEXT NOT NULL DEFAULT '',
+            event_time TEXT NOT NULL DEFAULT '',
+            location TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL DEFAULT ''
         )
@@ -182,7 +186,7 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY,
             me_name TEXT NOT NULL DEFAULT 'Valentin',
             me_emoji TEXT NOT NULL DEFAULT '🦊',
-            wife_name TEXT NOT NULL DEFAULT 'Chérie',
+            wife_name TEXT NOT NULL DEFAULT 'Lisa',
             wife_emoji TEXT NOT NULL DEFAULT '🌸',
             love_note TEXT NOT NULL DEFAULT 'On fait quoi de beau ce soir ? ✨',
             love_note_author TEXT NOT NULL DEFAULT 'both',
@@ -208,6 +212,10 @@ def init_db() -> None:
             ("quantity", "TEXT NOT NULL DEFAULT ''"),
             ("aisle", "TEXT NOT NULL DEFAULT ''"),
             ("subtasks_json", "TEXT NOT NULL DEFAULT '[]'"),
+            ("item_type", "TEXT NOT NULL DEFAULT 'task'"),
+            ("event_date", "TEXT NOT NULL DEFAULT ''"),
+            ("event_time", "TEXT NOT NULL DEFAULT ''"),
+            ("location", "TEXT NOT NULL DEFAULT ''"),
             ("updated_at", "TEXT NOT NULL DEFAULT ''"),
         ]
         for col_name, col_def in migrations:
@@ -236,7 +244,12 @@ def init_db() -> None:
             cur.execute(
                 f"INSERT INTO couple_profile (id, me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, updated_at) "
                 f"VALUES (1, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph})",
-                ("Valentin", "🦊", "Chérie", "🌸", "On fait quoi de beau ce soir ? ✨", "both", ""),
+                ("Valentin", "🦊", "Lisa", "🌸", "On fait quoi de beau ce soir ? ✨", "both", ""),
+            )
+        else:
+            cur.execute(
+                f"UPDATE couple_profile SET wife_name = {ph} WHERE id = 1 AND wife_name = {ph}",
+                ("Lisa", "Chérie"),
             )
 
         cur.close()
@@ -287,6 +300,10 @@ def row_to_task_dict(row: Any) -> dict[str, Any]:
     data["recurrence_rule"] = str(data.get("recurrence_rule") or ("daily" if data["recurring"] else "none"))
     data["quantity"] = str(data.get("quantity") or "")
     data["aisle"] = str(data.get("aisle") or "")
+    data["item_type"] = str(data.get("item_type") or "task")
+    data["event_date"] = str(data.get("event_date") or "")
+    data["event_time"] = str(data.get("event_time") or "")
+    data["location"] = str(data.get("location") or "")
     data["updated_at"] = str(data.get("updated_at") or "")
     data["subtasks"] = _parse_subtasks(raw_subtasks)
     return data

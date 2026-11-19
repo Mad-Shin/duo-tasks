@@ -23,6 +23,7 @@ ASSIGNEE_ALIASES: dict[str, str] = {
     "elle": "wife",
     "femme": "wife",
     "madame": "wife",
+    "lisa": "wife",
     "me": "me",
     "moi": "me",
     "val": "me",

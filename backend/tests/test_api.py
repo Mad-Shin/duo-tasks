@@ -103,6 +103,10 @@ class TestQuickAddParser(unittest.TestCase):
         self.assertEqual(p_en["title"], "Sport")
         self.assertEqual(p_en["due_label"], "lundi")
 
+        p_lisa = parse_quick_add("Appeler fleuriste @lisa #date")
+        self.assertEqual(p_lisa["assignee"], "wife")
+        self.assertEqual(p_lisa["title"], "Appeler fleuriste")
+
 
 class TestTasksAPIAndPWA(unittest.TestCase):
     def setUp(self) -> None:
@@ -324,6 +328,41 @@ class TestTasksAPIAndPWA(unittest.TestCase):
         self.assertEqual(r_stats.status_code, 200)
         self.assertEqual(r_stats.json()["extra"]["kudos_count"], 1)
         self.assertGreaterEqual(r_stats.json()["extra"]["couple_score"], 15)
+
+    def test_event_creation_filtering_and_ics_export(self) -> None:
+        r_ev = self.client.post(
+            "/api/tasks",
+            json={
+                "raw_input": "Mariage Paul & Marie",
+                "item_type": "event",
+                "event_date": "2026-12-05",
+                "event_time": "15:00",
+                "location": "Château de Vincennes",
+                "category": "date",
+            },
+        )
+        self.assertEqual(r_ev.status_code, 201)
+        ev = r_ev.json()
+        self.assertEqual(ev["item_type"], "event")
+        self.assertEqual(ev["event_date"], "2026-12-05")
+        self.assertEqual(ev["event_time"], "15:00")
+        self.assertEqual(ev["location"], "Château de Vincennes")
+
+        # Filter by item_type=event
+        self.client.post("/api/tasks", json={"raw_input": "Sortir poubelles @me"})
+        r_filtered = self.client.get("/api/tasks", params={"item_type": "event"})
+        self.assertEqual(r_filtered.status_code, 200)
+        self.assertEqual(len(r_filtered.json()), 1)
+        self.assertEqual(r_filtered.json()[0]["id"], ev["id"])
+
+        # Download .ics for Apple Calendar
+        r_ics = self.client.get(f"/api/tasks/{ev['id']}/ics")
+        self.assertEqual(r_ics.status_code, 200)
+        self.assertIn("text/calendar", r_ics.headers["content-type"])
+        self.assertIn("BEGIN:VCALENDAR", r_ics.text)
+        self.assertIn("SUMMARY:Mariage Paul & Marie", r_ics.text)
+        self.assertIn("LOCATION:Château de Vincennes", r_ics.text)
+        self.assertIn("DTSTART:20261205T150000", r_ics.text)
 
     def test_couple_stats_and_activity_log(self) -> None:
         t1 = self.client.post("/api/tasks", json={"raw_input": "Courses @both #courses !1"}).json()

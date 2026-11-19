@@ -7,12 +7,13 @@ from __future__ import annotations
 import json
 import mimetypes
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from .database import get_connection, get_database_url, get_db_mode, init_db, placeholder, row_to_task_dict
@@ -47,7 +48,7 @@ _INITIALIZED_URLS: set[str] = set()
 TASK_COLUMNS = (
     "id, title, raw_input, notes, assignee, category, priority, due_label, due_date, "
     "completed, completed_by, completed_at, recurring, recurrence_rule, quantity, aisle, "
-    "subtasks_json, created_at, updated_at"
+    "subtasks_json, item_type, event_date, event_time, location, created_at, updated_at"
 )
 
 ROUTINE_PACKS: list[dict[str, Any]] = [
@@ -214,6 +215,10 @@ def _insert_task_row(
     quantity: str,
     aisle: str,
     subtasks: list[dict[str, Any]],
+    item_type: str = "task",
+    event_date: str = "",
+    event_time: str = "",
+    location: str = "",
 ) -> int:
     ph = placeholder(mode)
     now = _utc_now()
@@ -235,6 +240,10 @@ def _insert_task_row(
         quantity,
         aisle,
         subtasks_json,
+        item_type,
+        event_date,
+        event_time,
+        location,
         now,
         now,
     )
@@ -242,9 +251,9 @@ def _insert_task_row(
     cols = (
         "title, raw_input, notes, assignee, category, priority, due_label, due_date, "
         "completed, completed_by, completed_at, recurring, recurrence_rule, quantity, aisle, "
-        "subtasks_json, created_at, updated_at"
+        "subtasks_json, item_type, event_date, event_time, location, created_at, updated_at"
     )
-    placeholders = ", ".join([ph] * 18)
+    placeholders = ", ".join([ph] * 22)
     if mode == "postgres":
         cur.execute(f"INSERT INTO tasks ({cols}) VALUES ({placeholders}) RETURNING id", values)
         inserted = cur.fetchone()
@@ -281,6 +290,7 @@ def list_tasks(
     completed: Optional[bool] = Query(default=None),
     due_label: Optional[str] = Query(default=None),
     recurring: Optional[bool] = Query(default=None),
+    item_type: Optional[str] = Query(default=None),
     search: Optional[str] = Query(default=None),
 ) -> list[dict[str, Any]]:
     ensure_db_ready()
@@ -304,10 +314,13 @@ def list_tasks(
         if recurring is not None:
             clauses.append(f"recurring = {ph}")
             params.append(_bool_param(recurring, mode))
+        if item_type and item_type.strip().lower() != "all":
+            clauses.append(f"item_type = {ph}")
+            params.append(item_type.strip().lower())
         if search and search.strip():
             like_pattern = f"%{search.strip().lower()}%"
-            clauses.append(f"(LOWER(title) LIKE {ph} OR LOWER(notes) LIKE {ph} OR LOWER(category) LIKE {ph})")
-            params.extend([like_pattern, like_pattern, like_pattern])
+            clauses.append(f"(LOWER(title) LIKE {ph} OR LOWER(notes) LIKE {ph} OR LOWER(category) LIKE {ph} OR LOWER(location) LIKE {ph})")
+            params.extend([like_pattern, like_pattern, like_pattern, like_pattern])
 
         where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         sql = f"SELECT {TASK_COLUMNS} FROM tasks {where_sql} ORDER BY completed ASC, priority ASC, id DESC"
@@ -341,6 +354,14 @@ async def create_task(payload: TaskCreate) -> dict[str, Any]:
 
     quantity = payload.quantity.strip() if payload.quantity is not None else parsed["quantity"]
     aisle = payload.aisle.strip() if payload.aisle is not None else (parsed["aisle"] or infer_aisle(title, category))
+    item_type = (payload.item_type or "task").strip().lower()
+    if item_type not in ("task", "event"):
+        item_type = "task"
+    event_date = (payload.event_date or "").strip()
+    if item_type == "event" and not event_date:
+        event_date = due_date
+    event_time = (payload.event_time or "").strip()
+    location = (payload.location or "").strip()
     subtasks = [s.model_dump() for s in payload.subtasks] if payload.subtasks else []
     notes = (payload.notes or "").strip()
 
@@ -361,6 +382,10 @@ async def create_task(payload: TaskCreate) -> dict[str, Any]:
             quantity=quantity,
             aisle=aisle,
             subtasks=subtasks,
+            item_type=item_type,
+            event_date=event_date,
+            event_time=event_time,
+            location=location,
         )
         _log_activity(conn, mode, assignee, "created", title, category)
         task = _fetch_task_by_id(conn, mode, new_id)
@@ -446,6 +471,18 @@ async def update_task(task_id: int, payload: TaskUpdate) -> dict[str, Any]:
         if "aisle" in updates and updates["aisle"] is not None:
             assignments.append(f"aisle = {ph}")
             params.append(updates["aisle"].strip())
+        if "item_type" in updates and updates["item_type"] is not None:
+            assignments.append(f"item_type = {ph}")
+            params.append(updates["item_type"].strip().lower())
+        if "event_date" in updates and updates["event_date"] is not None:
+            assignments.append(f"event_date = {ph}")
+            params.append(updates["event_date"].strip())
+        if "event_time" in updates and updates["event_time"] is not None:
+            assignments.append(f"event_time = {ph}")
+            params.append(updates["event_time"].strip())
+        if "location" in updates and updates["location"] is not None:
+            assignments.append(f"location = {ph}")
+            params.append(updates["location"].strip())
         if "subtasks" in updates and updates["subtasks"] is not None:
             assignments.append(f"subtasks_json = {ph}")
             params.append(json.dumps(updates["subtasks"], ensure_ascii=False))
@@ -522,6 +559,61 @@ async def delete_task(task_id: int) -> dict[str, Any]:
 
     await manager.broadcast({"event": "sync", "action": "deleted", "task_id": task_id})
     return {"deleted": True, "id": task_id}
+
+
+def _ics_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+
+@app.get("/api/tasks/{task_id}/ics")
+def download_task_ics(task_id: int) -> Response:
+    """Export an event/task as RFC 5545 .ics for 1-tap Apple Calendar / Google import."""
+    ensure_db_ready()
+    with get_connection() as (conn, mode):
+        task = _fetch_task_by_id(conn, mode, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+    raw_date = (task.get("event_date") or task.get("due_date") or datetime.now(timezone.utc).date().isoformat()).strip()
+    raw_time = (task.get("event_time") or "").strip()
+    compact_date = raw_date.replace("-", "")
+
+    if raw_time and ":" in raw_time:
+        hh, mm = raw_time.split(":", 1)
+        start_dt = datetime.strptime(f"{raw_date} {hh.zfill(2)}:{mm[:2].zfill(2)}", "%Y-%m-%d %H:%M")
+        end_dt = start_dt + timedelta(hours=2)
+        dtstart_line = f"DTSTART:{start_dt.strftime('%Y%m%dT%H%M00')}"
+        dtend_line = f"DTEND:{end_dt.strftime('%Y%m%dT%H%M00')}"
+    else:
+        dtstart_line = f"DTSTART;VALUE=DATE:{compact_date}"
+        next_day = (datetime.strptime(raw_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y%m%d")
+        dtend_line = f"DTEND;VALUE=DATE:{next_day}"
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//DuoTasks//Valentin & Lisa//FR",
+        "CALSCALE:GREGORIAN",
+        "BEGIN:VEVENT",
+        f"UID:duotasks-{task_id}@duotasks.local",
+        f"DTSTAMP:{stamp}",
+        dtstart_line,
+        dtend_line,
+        f"SUMMARY:{_ics_escape(task['title'])}",
+    ]
+    if task.get("location"):
+        lines.append(f"LOCATION:{_ics_escape(task['location'])}")
+    if task.get("notes"):
+        lines.append(f"DESCRIPTION:{_ics_escape(task['notes'])}")
+    lines.extend(["END:VEVENT", "END:VCALENDAR", ""])
+
+    ics_body = "\r\n".join(lines)
+    return Response(
+        content=ics_body,
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="duotasks-event-{task_id}.ics"'},
+    )
 
 
 # --- Subtasks Checklist Endpoints ---
@@ -813,7 +905,7 @@ def get_couple_profile() -> dict[str, Any]:
         return {
             "me_name": "Valentin",
             "me_emoji": "🦊",
-            "wife_name": "Chérie",
+            "wife_name": "Lisa",
             "wife_emoji": "🌸",
             "love_note": "On fait quoi de beau ce soir ? ✨",
             "love_note_author": "both",
