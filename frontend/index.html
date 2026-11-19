@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>DuoTasks — Tâches Partagées</title>
+  <title>DuoTasks — Tâches, Courses &amp; Routines Couple</title>
 
   <!-- PWA & Home Screen App Meta (Android + iPhone Safari) -->
   <link rel="manifest" href="/manifest.json" />
@@ -28,81 +28,338 @@
       </div>
 
       <div class="topbar-actions">
+        <div class="identity-switch" role="group" aria-label="Qui utilise ce téléphone">
+          <button type="button" class="id-btn active" data-identity="me">Moi</button>
+          <button type="button" class="id-btn" data-identity="wife">Elle</button>
+        </div>
         <div class="sync-pill" id="syncPill" title="Synchronisation WebSocket temps réel">
           <span class="sync-dot" id="syncDot"></span>
           <span id="syncText">Sync...</span>
         </div>
+        <button type="button" class="btn-icon btn-theme" id="themeToggleBtn" aria-label="Changer le thème" title="Mode sombre / clair">
+          🌙
+        </button>
         <button type="button" class="btn-icon" id="installHelpBtn" aria-label="Installer sur l'écran d'accueil">
           + Icône
         </button>
       </div>
     </header>
 
-    <nav class="filters" aria-label="Filtres couple">
-      <button type="button" class="filter-chip active" data-filter-type="all" data-filter-value="all">Tous</button>
-      <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="me">Moi (@me)</button>
-      <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="wife">Elle (@wife)</button>
-      <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="both">Ensemble</button>
-      <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="courses">#courses</button>
-      <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="maison">#maison</button>
+    <nav class="tab-nav" aria-label="Navigation principale">
+      <button type="button" class="tab-btn active" data-tab="tasks">
+        <span class="tab-ico">📋</span>
+        <span class="tab-lbl">Tâches</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="groceries">
+        <span class="tab-ico">🛒</span>
+        <span class="tab-lbl">Courses</span>
+        <span class="tab-badge hidden" id="groceriesBadge">0</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="routines">
+        <span class="tab-ico">🔁</span>
+        <span class="tab-lbl">Routines</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="stats">
+        <span class="tab-ico">📊</span>
+        <span class="tab-lbl">Équilibre</span>
+      </button>
     </nav>
 
-    <section class="quick-add-card">
-      <form id="quickAddForm" autocomplete="off">
-        <div class="input-row">
-          <input
-            type="text"
-            id="quickAddInput"
-            placeholder="Ex: Acheter du lait demain @wife #courses !1"
-            maxlength="280"
-            required
-          />
-          <button type="submit" class="btn-primary">Ajouter</button>
-        </div>
+    <!-- VIEW 1: TASKS (Todoist View) -->
+    <section class="view-pane" id="view-tasks">
+      <section class="quick-add-card">
+        <form id="quickAddForm" autocomplete="off">
+          <div class="input-row">
+            <input
+              type="text"
+              id="quickAddInput"
+              placeholder="Ex: Lait 2L demain @wife #courses !1"
+              maxlength="280"
+              required
+            />
+            <button type="submit" class="btn-primary">Ajouter</button>
+          </div>
 
-        <div class="quick-shortcuts">
-          <button type="button" class="shortcut-btn" data-token="@wife">@wife</button>
-          <button type="button" class="shortcut-btn" data-token="@me">@me</button>
-          <button type="button" class="shortcut-btn" data-token="#courses">#courses</button>
-          <button type="button" class="shortcut-btn" data-token="#maison">#maison</button>
-          <button type="button" class="shortcut-btn" data-token="demain">demain</button>
-          <button type="button" class="shortcut-btn" data-token="tous les jours">🔁 tous les jours</button>
-          <button type="button" class="shortcut-btn" data-token="!1">!1</button>
-        </div>
+          <div class="quick-shortcuts">
+            <button type="button" class="shortcut-btn" data-token="@wife">@wife</button>
+            <button type="button" class="shortcut-btn" data-token="@me">@me</button>
+            <button type="button" class="shortcut-btn" data-token="@both">@both</button>
+            <button type="button" class="shortcut-btn" data-token="#courses">#courses</button>
+            <button type="button" class="shortcut-btn" data-token="#maison">#maison</button>
+            <button type="button" class="shortcut-btn" data-token="#daily">#daily</button>
+            <button type="button" class="shortcut-btn" data-token="demain">demain</button>
+            <button type="button" class="shortcut-btn" data-token="weekend">weekend</button>
+            <button type="button" class="shortcut-btn" data-token="tous les jours">🔁 quotidien</button>
+            <button type="button" class="shortcut-btn" data-token="!1">!1</button>
+          </div>
 
-        <div class="parse-preview" id="parsePreview" aria-live="polite">
-          <span class="preview-label">Aperçu parser :</span>
-          <span class="chip chip-assignee" id="prevAssignee">@both</span>
-          <span class="chip chip-category" id="prevCategory">#inbox</span>
-          <span class="chip chip-due" id="prevDue">today</span>
-          <span class="chip chip-prio" id="prevPrio">P3</span>
-          <span class="chip chip-recurring hidden" id="prevRecurring">🔁 quotidien</span>
-        </div>
-      </form>
+          <div class="parse-preview" id="parsePreview" aria-live="polite">
+            <span class="preview-label">Aperçu :</span>
+            <span class="chip chip-assignee" id="prevAssignee">@both</span>
+            <span class="chip chip-category" id="prevCategory">#inbox</span>
+            <span class="chip chip-due" id="prevDue">today</span>
+            <span class="chip chip-prio" id="prevPrio">P3</span>
+            <span class="chip chip-recurring hidden" id="prevRecurring">🔁 quotidien</span>
+            <span class="chip chip-qty hidden" id="prevQty"></span>
+            <span class="chip chip-aisle hidden" id="prevAisle"></span>
+          </div>
+        </form>
+      </section>
+
+      <div class="search-bar-row">
+        <input type="search" id="taskSearchInput" placeholder="🔍 Rechercher une tâche, note ou #tag..." />
+      </div>
+
+      <nav class="filters" aria-label="Filtres couple">
+        <button type="button" class="filter-chip active" data-filter-type="all" data-filter-value="all">Tous</button>
+        <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="me">Moi (@me)</button>
+        <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="wife">Elle (@wife)</button>
+        <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="both">Ensemble</button>
+        <button type="button" class="filter-chip" data-filter-type="due" data-filter-value="today">Aujourd'hui</button>
+        <button type="button" class="filter-chip" data-filter-type="due" data-filter-value="tomorrow">Demain</button>
+        <button type="button" class="filter-chip" data-filter-type="due" data-filter-value="weekend">Week-end</button>
+        <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="maison">#maison</button>
+        <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="courses">#courses</button>
+        <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="daily">#daily</button>
+      </nav>
+
+      <main class="task-sections">
+        <section aria-labelledby="activeHeading">
+          <div class="section-header">
+            <h2 id="activeHeading">À faire</h2>
+          </div>
+          <ul class="task-list" id="activeTaskList"></ul>
+          <div class="empty-state hidden" id="emptyState">
+            Rien en attente ici. Ajoute une tâche ci-dessus avec <code>@wife</code> ou <code>#courses</code>, ou applique un pack dans <strong>Routines</strong>.
+          </div>
+        </section>
+
+        <section class="completed-section" aria-labelledby="completedHeading">
+          <div class="completed-header">
+            <button type="button" class="section-toggle" id="toggleCompletedBtn">
+              <span id="completedHeading">Terminées (0)</span>
+              <span id="completedChevron">▾</span>
+            </button>
+            <button type="button" class="btn-clear-completed hidden" id="clearCompletedBtn">Vider terminées</button>
+          </div>
+          <ul class="task-list" id="completedTaskList"></ul>
+        </section>
+      </main>
     </section>
 
-    <main class="task-sections">
-      <section aria-labelledby="activeHeading">
-        <div class="section-header">
-          <h2 id="activeHeading">À faire</h2>
+    <!-- VIEW 2: GROCERIES (Supermarket Mode) -->
+    <section class="view-pane hidden" id="view-groceries">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>🛒 Ajout Rapide Courses</h2>
+            <p class="muted-text">Tape un article (ex: <code>Saumon 2 pavés !1</code>) ou clique sur un favori ci-dessous.</p>
+          </div>
         </div>
-        <ul class="task-list" id="activeTaskList"></ul>
-        <div class="empty-state hidden" id="emptyState">
-          Rien en attente ici. Ajoute une tâche ci-dessus avec <code>@wife</code> ou <code>#courses</code>.
-        </div>
-      </section>
+        <form id="groceryQuickForm" class="input-row" autocomplete="off">
+          <input type="text" id="groceryQuickInput" placeholder="Ajouter au panier (ex: Avocats x2)..." maxlength="200" required />
+          <button type="submit" class="btn-primary">+ Panier</button>
+        </form>
+      </div>
 
-      <section class="completed-section" aria-labelledby="completedHeading">
-        <div class="completed-header">
-          <button type="button" class="section-toggle" id="toggleCompletedBtn">
-            <span id="completedHeading">Terminées (0)</span>
-            <span id="completedChevron">▾</span>
-          </button>
-          <button type="button" class="btn-clear-completed hidden" id="clearCompletedBtn">Vider terminées</button>
+      <div class="card">
+        <div class="card-head">
+          <h2>⭐ Garde-Manger (Ajout 1-Tap)</h2>
+          <button type="button" class="btn-small" id="toggleNewStapleBtn">+ Favori</button>
         </div>
-        <ul class="task-list" id="completedTaskList"></ul>
-      </section>
-    </main>
+
+        <form id="newStapleForm" class="new-staple-form hidden" autocomplete="off">
+          <input type="text" id="stapleNameInput" placeholder="Article (ex: Mozzarella)" maxlength="80" required />
+          <input type="text" id="stapleQtyInput" placeholder="Qté (ex: x2)" maxlength="30" />
+          <select id="stapleAisleInput">
+            <option value="Frais & Laitier">Frais &amp; Laitier</option>
+            <option value="Fruits & Légumes">Fruits &amp; Légumes</option>
+            <option value="Boulangerie">Boulangerie</option>
+            <option value="Viande & Poisson">Viande &amp; Poisson</option>
+            <option value="Épicerie">Épicerie</option>
+            <option value="Boissons">Boissons</option>
+            <option value="Maison & Hygiène">Maison &amp; Hygiène</option>
+            <option value="Autre">Autre</option>
+          </select>
+          <input type="text" id="stapleEmojiInput" placeholder="Emoji" value="🛒" maxlength="6" />
+          <button type="submit" class="btn-primary">Enregistrer</button>
+        </form>
+
+        <div class="filters" id="stapleAisleFilters">
+          <button type="button" class="filter-chip active" data-aisle="all">Tous rayons</button>
+          <button type="button" class="filter-chip" data-aisle="Frais & Laitier">🥛 Frais</button>
+          <button type="button" class="filter-chip" data-aisle="Fruits & Légumes">🍅 Fruits &amp; Lég.</button>
+          <button type="button" class="filter-chip" data-aisle="Boulangerie">🥖 Boulangerie</button>
+          <button type="button" class="filter-chip" data-aisle="Viande & Poisson">🍗 Viande/Poiss.</button>
+          <button type="button" class="filter-chip" data-aisle="Épicerie">🍝 Épicerie</button>
+          <button type="button" class="filter-chip" data-aisle="Boissons">💧 Boissons</button>
+          <button type="button" class="filter-chip" data-aisle="Maison & Hygiène">🧻 Hygiène</button>
+        </div>
+
+        <div class="staples-grid" id="staplesGrid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>🛍️ Panier par Rayon</h2>
+          <button type="button" class="btn-clear-completed hidden" id="clearGroceriesBtn">Vider achetés</button>
+        </div>
+        <div id="groceriesByAisle"></div>
+        <div class="empty-state hidden" id="groceriesEmptyState">
+          Votre liste de courses est vide. Sélectionnez vos essentiels au-dessus.
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: ROUTINES & PACKS -->
+    <section class="view-pane hidden" id="view-routines">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>🔁 Habitudes &amp; Routines</h2>
+            <p class="muted-text" id="routinesSummary">Réinitialisez les routines terminées d'un geste.</p>
+          </div>
+          <button type="button" class="btn-primary" id="resetRoutinesBtn">🔄 Réinitialiser</button>
+        </div>
+        <ul class="task-list" id="routinesList"></ul>
+        <div class="empty-state hidden" id="routinesEmptyState">
+          Aucune tâche récurrente pour le moment. Ajoutez <code>tous les jours</code> ou <code>hebdo</code> à une tâche, ou appliquez un pack ci-dessous.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>📦 Packs Couple 1-Tap</h2>
+            <p class="muted-text">Chargez une checklist prête à l'emploi sans doublons.</p>
+          </div>
+        </div>
+        <div class="packs-grid" id="packsGrid"></div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: COUPLE BALANCE & ACTIVITY -->
+    <section class="view-pane hidden" id="view-stats">
+      <div class="kpi-grid" id="kpiGrid"></div>
+
+      <div class="card">
+        <h2>⚖️ Équilibre Couple</h2>
+        <div id="balanceBars"></div>
+      </div>
+
+      <div class="card">
+        <h2>🏷️ Répartition par Catégorie</h2>
+        <div id="categoryBars"></div>
+      </div>
+
+      <div class="card">
+        <h2>🕒 Journal d'Activité Récent</h2>
+        <ul class="activity-list" id="activityFeed"></ul>
+      </div>
+    </section>
+  </div>
+
+  <!-- Task Detail Drawer / Modal -->
+  <div class="modal-backdrop hidden" id="taskDrawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitleHeading">
+    <div class="modal-card drawer-card">
+      <div class="modal-header">
+        <h3 id="drawerTitleHeading">Détails de la tâche</h3>
+        <button type="button" class="btn-close" id="closeDrawerBtn" aria-label="Fermer">✕</button>
+      </div>
+      <form id="taskEditForm" class="drawer-form">
+        <input type="hidden" id="editTaskId" />
+        <label class="field-group">
+          <span>Titre</span>
+          <input type="text" id="editTitle" maxlength="280" required />
+        </label>
+
+        <label class="field-group">
+          <span>Notes / Précisions</span>
+          <textarea id="editNotes" rows="2" maxlength="2000" placeholder="Marque préférée, adresse, remarque..."></textarea>
+        </label>
+
+        <div class="field-grid">
+          <label class="field-group">
+            <span>Assigné à</span>
+            <select id="editAssignee">
+              <option value="both">Ensemble (@both)</option>
+              <option value="me">Moi (@me)</option>
+              <option value="wife">Elle (@wife)</option>
+            </select>
+          </label>
+          <label class="field-group">
+            <span>Catégorie</span>
+            <select id="editCategory">
+              <option value="inbox">#inbox</option>
+              <option value="courses">#courses</option>
+              <option value="maison">#maison</option>
+              <option value="daily">#daily</option>
+              <option value="weekend">#weekend</option>
+              <option value="admin">#admin</option>
+            </select>
+          </label>
+          <label class="field-group">
+            <span>Priorité</span>
+            <select id="editPriority">
+              <option value="1">P1 — Urgente</option>
+              <option value="2">P2 — Haute</option>
+              <option value="3">P3 — Normale</option>
+            </select>
+          </label>
+          <label class="field-group">
+            <span>Échéance</span>
+            <select id="editDueLabel">
+              <option value="today">Aujourd'hui</option>
+              <option value="tomorrow">Demain</option>
+              <option value="weekend">Week-end</option>
+              <option value="later">Plus tard</option>
+            </select>
+          </label>
+          <label class="field-group">
+            <span>Récurrence</span>
+            <select id="editRecurrence">
+              <option value="none">Aucune</option>
+              <option value="daily">Quotidienne</option>
+              <option value="weekly">Hebdomadaire</option>
+              <option value="monthly">Mensuelle</option>
+            </select>
+          </label>
+          <label class="field-group">
+            <span>Quantité</span>
+            <input type="text" id="editQuantity" maxlength="40" placeholder="Ex: 2L, x12" />
+          </label>
+        </div>
+
+        <label class="field-group">
+          <span>Rayon (Courses)</span>
+          <select id="editAisle">
+            <option value="">Aucun</option>
+            <option value="Frais & Laitier">Frais &amp; Laitier</option>
+            <option value="Fruits & Légumes">Fruits &amp; Légumes</option>
+            <option value="Boulangerie">Boulangerie</option>
+            <option value="Viande & Poisson">Viande &amp; Poisson</option>
+            <option value="Épicerie">Épicerie</option>
+            <option value="Boissons">Boissons</option>
+            <option value="Maison & Hygiène">Maison &amp; Hygiène</option>
+            <option value="Autre">Autre</option>
+          </select>
+        </label>
+
+        <div class="subtasks-box">
+          <h4>Sous-tâches / Checklist</h4>
+          <ul class="subtask-list" id="drawerSubtaskList"></ul>
+          <div class="input-row">
+            <input type="text" id="newSubtaskInput" placeholder="+ Ajouter une étape..." maxlength="200" />
+            <button type="button" class="btn-small" id="addSubtaskBtn">Ajouter</button>
+          </div>
+        </div>
+
+        <div class="drawer-footer">
+          <button type="button" class="btn-danger" id="drawerDeleteBtn">Supprimer</button>
+          <button type="submit" class="btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- Modal d'installation iPhone & Android -->
@@ -132,6 +389,8 @@
       </div>
     </div>
   </div>
+
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
   <script src="/app.js"></script>
 </body>
