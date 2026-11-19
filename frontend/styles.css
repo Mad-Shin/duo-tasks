@@ -1,27 +1,31 @@
 :root {
-  --bg: #090b10;
+  --font-display: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --bg: #070a10;
   --bg-glow:
-    radial-gradient(ellipse 65% 38% at 15% -5%, rgba(56, 189, 248, 0.08), transparent 65%),
-    radial-gradient(ellipse 65% 38% at 88% -5%, rgba(59, 130, 246, 0.11), transparent 65%);
-  --surface: #12151e;
-  --surface-elevated: #171b26;
-  --surface-muted: #1e2433;
-  --text: #eef1f7;
-  --text-secondary: #838ba2;
-  --border: rgba(255, 255, 255, 0.08);
+    radial-gradient(ellipse 68% 40% at 14% -6%, rgba(56, 189, 248, 0.09), transparent 64%),
+    radial-gradient(ellipse 68% 40% at 88% -6%, rgba(59, 130, 246, 0.13), transparent 64%),
+    radial-gradient(ellipse 50% 35% at 50% 108%, rgba(29, 78, 216, 0.07), transparent 70%);
+  --surface: #0f141e;
+  --surface-elevated: #151b28;
+  --surface-muted: #1c2436;
+  --text: #f1f5fb;
+  --text-secondary: #8b95ad;
+  --border: rgba(148, 163, 184, 0.11);
   --accent: #3b82f6;
   --accent-deep: #1d4ed8;
   --accent-hover: #60a5fa;
   --cyber-cyan: #38bdf8;
-  --accent-soft: rgba(59, 130, 246, 0.16);
+  --accent-soft: rgba(59, 130, 246, 0.15);
   --p1: #60a5fa;
   --p2: #38bdf8;
-  --p3: #4b5368;
+  --p3: #475269;
   --ok: #34d399;
   --danger: #f87171;
-  --shadow-card: 0 16px 38px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  --shadow-btn: 0 4px 12px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.13), inset 0 -1px 0 rgba(0, 0, 0, 0.4);
-  --shadow-accent: 0 6px 18px rgba(29, 78, 216, 0.45), 0 2px 4px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 18px 42px rgba(0, 0, 0, 0.58), 0 2px 6px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --shadow-btn: 0 4px 12px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+  --shadow-accent: 0 8px 22px rgba(29, 78, 216, 0.46), 0 2px 5px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -1px 0 rgba(0, 0, 0, 0.38);
   --shadow-pressed: 0 1px 3px rgba(0, 0, 0, 0.5), inset 0 2px 4px rgba(0, 0, 0, 0.45);
   --radius: 16px;
 }
@@ -75,19 +79,47 @@ html, body {
   background-image: var(--bg-glow);
   background-attachment: fixed;
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   font-size: 16px;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  text-rendering: optimizeLegibility;
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ultra-subtle brushed obsidian texture (zero external requests, eliminates dark gradient banding) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.024;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+html[data-theme="light"] body::before {
+  opacity: 0.012;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.55);
+  outline-offset: 2px;
 }
 
 /* Serene centered v3.2 proportions */
 .app-shell {
+  position: relative;
+  z-index: 1;
   max-width: 580px;
   margin: 0 auto;
   min-height: 100dvh;
   overflow-x: clip;
-  padding: calc(18px + env(safe-area-inset-top)) 16px calc(86px + env(safe-area-inset-bottom));
+  padding: calc(18px + env(safe-area-inset-top)) 16px calc(156px + env(safe-area-inset-bottom));
 }
 
 /* Header */
@@ -120,9 +152,11 @@ html, body {
 
 .brand-text h1 {
   margin: 0;
-  font-size: 1.06rem;
+  font-family: var(--font-display);
+  font-size: 1.14rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
 }
 
 .status-line {
@@ -131,10 +165,12 @@ html, body {
   gap: 5px;
   margin-top: 2px;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .subtitle, .sync-sep {
   font-size: 0.74rem;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
@@ -235,14 +271,15 @@ html, body {
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-family: inherit;
-  font-size: 0.84rem;
+  font-family: var(--font-display);
+  font-size: 0.86rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
   min-height: 36px;
   padding: 6px 10px;
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s var(--ease-out);
 }
 
 .mode-btn.active {
@@ -295,14 +332,15 @@ html, body {
   border: none;
   background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
   color: #ffffff;
-  font-family: inherit;
-  font-size: 0.85rem;
+  font-family: var(--font-display);
+  font-size: 0.86rem;
   font-weight: 600;
-  padding: 10px 16px;
+  letter-spacing: -0.01em;
+  padding: 10px 17px;
   border-radius: 11px;
   cursor: pointer;
   box-shadow: var(--shadow-accent);
-  transition: transform 0.1s ease, filter 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.12s var(--ease-out), filter 0.16s ease, box-shadow 0.16s ease;
 }
 
 .btn-add:hover {
@@ -567,8 +605,15 @@ html[data-theme="light"] .recurring-assignee-switch {
 
 .quiet-section-header h2 {
   margin: 0;
-  font-size: 0.82rem;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
   font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(139, 149, 173, 0.82);
+}
+
+html[data-theme="light"] .quiet-section-header h2 {
   color: var(--text-secondary);
 }
 
@@ -813,9 +858,10 @@ html[data-theme="light"] .swipe-cue-btn {
 }
 
 .task-title {
-  font-size: 0.96rem;
+  font-size: 0.945rem;
   font-weight: 500;
-  line-height: 1.4;
+  letter-spacing: -0.01em;
+  line-height: 1.42;
   word-break: break-word;
 }
 
@@ -829,7 +875,9 @@ html[data-theme="light"] .swipe-cue-btn {
   align-items: center;
   gap: 6px;
   margin-top: 4px;
-  font-size: 0.75rem;
+  font-size: 0.74rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
 }
 
@@ -997,62 +1045,127 @@ html[data-theme="light"] .rec-assignee-tag {
   padding: 4px 2px;
   color: var(--text-secondary);
   font-family: inherit;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
 
-/* 3 Floating Bottom-Right Buttons styled like v3.2's .mobile-mode-fab */
+/* 3 Vertically Stacked Floating Bottom-Right Frosted Obsidian Pills */
 .quick-fab-group {
   position: fixed;
   right: 16px;
   bottom: calc(18px + env(safe-area-inset-bottom));
   z-index: 45;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 
 .fab-pill {
+  min-width: 132px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface) 100%);
+  justify-content: flex-start;
+  gap: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: linear-gradient(155deg, rgba(25, 32, 47, 0.86) 0%, rgba(14, 18, 28, 0.9) 100%);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
   color: var(--text-secondary);
-  font-family: inherit;
-  font-size: 0.8rem;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
   font-weight: 600;
-  padding: 9px 13px;
+  letter-spacing: -0.01em;
+  padding: 6px 14px 6px 6px;
   border-radius: 999px;
-  box-shadow: var(--shadow-card);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.52),
+    0 2px 6px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   cursor: pointer;
-  transition: transform 0.1s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    transform 0.2s var(--ease-out),
+    border-color 0.2s ease,
+    color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.fab-pill svg {
-  width: 14px;
-  height: 14px;
+html[data-theme="light"] .fab-pill {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.1),
+    0 2px 6px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.fab-ico-wrap {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
   flex: 0 0 auto;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+html[data-theme="light"] .fab-ico-wrap {
+  background: rgba(15, 23, 42, 0.05);
+  border-color: rgba(15, 23, 42, 0.06);
+}
+
+.fab-ico-wrap svg {
+  width: 13px;
+  height: 13px;
 }
 
 .fab-pill:hover {
   color: var(--text);
+  border-color: rgba(96, 165, 250, 0.38);
+  transform: translateX(-2px);
+}
+
+.fab-pill:hover .fab-ico-wrap {
+  color: var(--text);
 }
 
 .fab-pill:active {
-  transform: translateY(1px);
+  transform: scale(0.97);
   box-shadow: var(--shadow-pressed);
 }
 
 .fab-pill.active {
-  color: var(--text);
-  border-color: rgba(59, 130, 246, 0.55);
-  box-shadow: var(--shadow-card), 0 0 14px rgba(59, 130, 246, 0.18);
+  color: #f8fbff;
+  border-color: rgba(96, 165, 250, 0.58);
+  background: linear-gradient(145deg, rgba(37, 99, 235, 0.28) 0%, rgba(17, 24, 42, 0.92) 100%);
+  box-shadow:
+    0 14px 30px rgba(29, 78, 216, 0.32),
+    0 4px 10px rgba(0, 0, 0, 0.44),
+    inset 0 1px 0 rgba(191, 219, 254, 0.28);
 }
 
-.fab-pill.active svg {
-  color: var(--accent-hover);
+html[data-theme="light"] .fab-pill.active {
+  color: #0f172a;
+  background: linear-gradient(145deg, rgba(239, 246, 255, 0.96) 0%, rgba(255, 255, 255, 0.96) 100%);
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow:
+    0 10px 24px rgba(37, 99, 235, 0.18),
+    0 2px 6px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 #ffffff;
+}
+
+.fab-pill.active .fab-ico-wrap {
+  background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.55);
 }
 
 /* Modals & Settings */
@@ -1118,8 +1231,10 @@ input[type="text"]:focus, input[type="date"]:focus, input[type="time"]:focus, in
 
 .modal-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-family: var(--font-display);
+  font-size: 1.04rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .btn-close {
@@ -1243,10 +1358,10 @@ html[data-theme="light"] .urgent-check {
   line-height: 1.5;
 }
 
-/* Toasts */
+/* Toasts (bottom-left on narrow screens so they never collide with the vertical FAB stack) */
 .toast-container {
   position: fixed;
-  bottom: calc(74px + env(safe-area-inset-bottom));
+  bottom: calc(20px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
   z-index: 80;
@@ -1254,6 +1369,13 @@ html[data-theme="light"] .urgent-check {
   flex-direction: column;
   gap: 6px;
   pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .toast-container {
+    left: 16px;
+    transform: none;
+  }
 }
 
 .toast {
@@ -1319,15 +1441,21 @@ html[data-theme="light"] .urgent-check {
 @media (max-width: 420px) {
   .quick-fab-group {
     right: 12px;
-    gap: 6px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    gap: 7px;
   }
   .fab-pill {
-    padding: 8px 10px;
-    font-size: 0.76rem;
-    gap: 5px;
+    min-width: 122px;
+    padding: 5px 12px 5px 5px;
+    font-size: 0.78rem;
+    gap: 8px;
   }
-  .fab-pill svg {
-    width: 13px;
-    height: 13px;
+  .fab-ico-wrap {
+    width: 24px;
+    height: 24px;
+  }
+  .fab-ico-wrap svg {
+    width: 12px;
+    height: 12px;
   }
 }
