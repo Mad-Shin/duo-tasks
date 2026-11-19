@@ -203,29 +203,16 @@
             </section>
           </section>
 
-          <!-- SLIDE 2: TÂCHES RÉCURRENTES (Peeks slightly on the right, swipe to reveal split Valentin / Lisa) -->
+          <!-- SLIDE 2: TÂCHES RÉCURRENTES (Single quiet card with discrete tappable assignee tags) -->
           <aside id="sec-recurring" class="carousel-slide recurring-slide" aria-label="Tâches récurrentes">
             <div class="rec-peek-handle" id="recPeekHandle" title="Glisser pour voir les tâches récurrentes" aria-hidden="true">
               <span class="peek-bar"></span>
             </div>
 
-            <div class="recurring-panel">
-              <div class="recurring-lane">
-                <div class="lane-header">
-                  <span class="lane-dot lane-dot-me"></span>
-                  <span id="laneTitleMe">Valentin</span>
-                </div>
-                <ul class="task-list recurring-list" id="recurringMeList"></ul>
-                <div class="lane-empty hidden" id="recurringMeEmpty">Aucune tâche récurrente</div>
-              </div>
-
-              <div class="recurring-lane">
-                <div class="lane-header">
-                  <span class="lane-dot lane-dot-wife"></span>
-                  <span id="laneTitleWife">Lisa</span>
-                </div>
-                <ul class="task-list recurring-list" id="recurringWifeList"></ul>
-                <div class="lane-empty hidden" id="recurringWifeEmpty">Aucune tâche récurrente</div>
+            <div class="surface-list-wrap recurring-card-wrap">
+              <ul class="task-list recurring-list" id="recurringList"></ul>
+              <div class="empty-state hidden" id="recurringEmpty">
+                Aucune tâche récurrente.
               </div>
             </div>
           </aside>

@@ -722,7 +722,7 @@ html[data-theme="light"] .swipe-cue-btn {
   opacity: 0;
 }
 
-.recurring-slide:not(.in-view) .recurring-panel {
+.recurring-slide:not(.in-view) .recurring-card-wrap {
   cursor: pointer;
 }
 
@@ -842,81 +842,58 @@ html[data-theme="light"] .swipe-cue-btn {
   opacity: 0.45;
 }
 
-/* Recurring Split Panel (Clean vertical lanes for Valentin & Lisa) */
-.recurring-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-
-.recurring-lane {
-  background: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface) 100%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
-  min-width: 0;
-}
-
-.lane-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 15px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--text);
-  border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.015);
-}
-
-.lane-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex: 0 0 auto;
-}
-
-.lane-dot-me {
-  background: var(--accent-hover);
-  box-shadow: 0 0 8px var(--accent-hover);
-}
-
-.lane-dot-wife {
-  background: var(--cyber-cyan);
-  box-shadow: 0 0 8px var(--cyber-cyan);
-}
-
+/* Recurring Unified List with Discrete Assignee Tag */
 .recurring-list .task-item {
-  padding: 11px 14px;
+  padding: 12px 14px;
   align-items: center;
 }
 
-.rec-swap-btn {
+.rec-assignee-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--surface-muted) 0%, var(--surface) 100%);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text-secondary);
   font-family: inherit;
   font-size: 0.72rem;
   font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 8px;
+  padding: 4px 9px;
+  border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: var(--shadow-btn);
-  transition: color 0.14s ease, border-color 0.14s ease;
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease, transform 0.1s ease;
 }
 
-.rec-swap-btn:hover {
+html[data-theme="light"] .rec-assignee-tag {
+  background: var(--bg);
+}
+
+.rec-assignee-tag:hover {
   color: var(--text);
-  border-color: rgba(96, 165, 250, 0.45);
+  border-color: rgba(96, 165, 250, 0.4);
+  background: var(--accent-soft);
 }
 
-.lane-empty {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  padding: 14px 15px;
+.rec-assignee-tag:active {
+  transform: scale(0.96);
+}
+
+.rec-tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.rec-assignee-tag.tag-me .rec-tag-dot {
+  background: var(--accent-hover);
+  box-shadow: 0 0 6px rgba(96, 165, 250, 0.7);
+}
+
+.rec-assignee-tag.tag-wife .rec-tag-dot {
+  background: var(--cyber-cyan);
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.7);
 }
 
 /* Calendar Sync Links */

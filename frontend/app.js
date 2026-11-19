@@ -99,13 +99,9 @@ const els = {
   resetRoutinesBtn: document.getElementById("resetRoutinesBtn"),
   clearCompletedBtn: document.getElementById("clearCompletedBtn"),
 
-  // Recurring Split Panel
-  laneTitleMe: document.getElementById("laneTitleMe"),
-  laneTitleWife: document.getElementById("laneTitleWife"),
-  recurringMeList: document.getElementById("recurringMeList"),
-  recurringWifeList: document.getElementById("recurringWifeList"),
-  recurringMeEmpty: document.getElementById("recurringMeEmpty"),
-  recurringWifeEmpty: document.getElementById("recurringWifeEmpty"),
+  // Recurring Unified Panel
+  recurringList: document.getElementById("recurringList"),
+  recurringEmpty: document.getElementById("recurringEmpty"),
 
   // Courses & Events Sections
   coursesList: document.getElementById("coursesList"),
@@ -267,8 +263,6 @@ function renderProfileLabels() {
   const wife = partnerName("wife");
   els.recWhoMe.textContent = me;
   els.recWhoWife.textContent = wife;
-  els.laneTitleMe.textContent = me;
-  els.laneTitleWife.textContent = wife;
   if (els.editAssignee.options.length >= 3) {
     els.editAssignee.options[0].textContent = `${me} & ${wife}`;
     els.editAssignee.options[1].textContent = me;
@@ -378,17 +372,10 @@ function renderAllSections() {
     regularTasks.forEach((task) => els.activeList.appendChild(createListRow(task)));
   }
 
-  // 2. Recurring Split Slide (Valentin vs Lisa vertical rows)
-  const recMe = recurringTasks.filter((t) => t.assignee !== "wife");
-  const recWife = recurringTasks.filter((t) => t.assignee === "wife");
-
-  els.recurringMeList.innerHTML = "";
-  els.recurringMeEmpty.classList.toggle("hidden", recMe.length > 0);
-  recMe.forEach((t) => els.recurringMeList.appendChild(createRecurringRow(t)));
-
-  els.recurringWifeList.innerHTML = "";
-  els.recurringWifeEmpty.classList.toggle("hidden", recWife.length > 0);
-  recWife.forEach((t) => els.recurringWifeList.appendChild(createRecurringRow(t)));
+  // 2. Recurring Unified List with Discrete Assignee Tag
+  els.recurringList.innerHTML = "";
+  els.recurringEmpty.classList.toggle("hidden", recurringTasks.length > 0);
+  recurringTasks.forEach((t) => els.recurringList.appendChild(createRecurringRow(t)));
 
   // 3. Courses Section (empty by default)
   els.coursesList.innerHTML = "";
@@ -444,13 +431,23 @@ function createRecurringRow(task) {
   const actions = document.createElement("div");
   actions.className = "task-actions-col";
 
-  const swapBtn = document.createElement("button");
-  swapBtn.type = "button";
-  swapBtn.className = "rec-swap-btn";
-  const nextWho = task.assignee === "wife" ? "me" : "wife";
-  swapBtn.title = `Passer à ${partnerName(nextWho)}`;
-  swapBtn.textContent = `⇄ ${partnerName(nextWho)}`;
-  swapBtn.addEventListener("click", async (e) => {
+  const isWife = task.assignee === "wife";
+  const currentWho = isWife ? "wife" : "me";
+  const nextWho = isWife ? "me" : "wife";
+
+  const tagBtn = document.createElement("button");
+  tagBtn.type = "button";
+  tagBtn.className = `rec-assignee-tag tag-${currentWho}`;
+  tagBtn.title = `Passer à ${partnerName(nextWho)}`;
+
+  const dot = document.createElement("span");
+  dot.className = "rec-tag-dot";
+  const nameSpan = document.createElement("span");
+  nameSpan.textContent = partnerName(currentWho);
+
+  tagBtn.appendChild(dot);
+  tagBtn.appendChild(nameSpan);
+  tagBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     await apiJson(`/api/tasks/${task.id}`, {
       method: "PATCH",
@@ -469,7 +466,7 @@ function createRecurringRow(task) {
     deleteTask(task);
   });
 
-  actions.appendChild(swapBtn);
+  actions.appendChild(tagBtn);
   actions.appendChild(delBtn);
 
   li.appendChild(checkBtn);
