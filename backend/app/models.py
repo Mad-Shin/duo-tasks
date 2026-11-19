@@ -164,6 +164,9 @@ class CoupleProfileOut(BaseModel):
     love_note: str
     love_note_author: str
     kudos_count: int
+    preset_tasks: list[str] = Field(
+        default_factory=lambda: ["Deep clean salle de bain hebdo", "Deep clean cuisine hebdo"]
+    )
     updated_at: str = ""
 
 
@@ -174,6 +177,7 @@ class CoupleProfileUpdate(BaseModel):
     wife_emoji: Optional[str] = Field(default=None, min_length=1, max_length=8)
     love_note: Optional[str] = Field(default=None, max_length=200)
     love_note_author: Optional[str] = Field(default=None, max_length=20)
+    preset_tasks: Optional[list[str]] = None
 
 
 class KudosRequest(BaseModel):

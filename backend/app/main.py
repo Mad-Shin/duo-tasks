@@ -889,6 +889,23 @@ async def quick_add_grocery_staple(staple_id: int) -> dict[str, Any]:
 
 # --- Couple Profile, Love Note & Kudos ---
 
+DEFAULT_PRESET_TASKS = ["Deep clean salle de bain hebdo", "Deep clean cuisine hebdo"]
+
+
+def _row_to_profile_dict(row: Any) -> dict[str, Any]:
+    data = dict(row)
+    raw_presets = data.pop("preset_tasks_json", None)
+    presets: list[str] = list(DEFAULT_PRESET_TASKS)
+    if isinstance(raw_presets, str) and raw_presets.strip():
+        try:
+            loaded = json.loads(raw_presets)
+            if isinstance(loaded, list):
+                presets = [str(item).strip() for item in loaded if str(item).strip()]
+        except Exception:
+            pass
+    data["preset_tasks"] = presets
+    return data
+
 
 @app.get("/api/couple/profile", response_model=CoupleProfileOut)
 def get_couple_profile() -> dict[str, Any]:
@@ -896,7 +913,7 @@ def get_couple_profile() -> dict[str, Any]:
     with get_connection() as (conn, _):
         cur = conn.cursor()
         cur.execute(
-            "SELECT me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, updated_at "
+            "SELECT me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, preset_tasks_json, updated_at "
             "FROM couple_profile WHERE id = 1"
         )
         row = cur.fetchone()
@@ -910,9 +927,10 @@ def get_couple_profile() -> dict[str, Any]:
             "love_note": "On fait quoi de beau ce soir ? ✨",
             "love_note_author": "both",
             "kudos_count": 0,
+            "preset_tasks": list(DEFAULT_PRESET_TASKS),
             "updated_at": "",
         }
-    return dict(row)
+    return _row_to_profile_dict(row)
 
 
 @app.patch("/api/couple/profile", response_model=CoupleProfileOut)
@@ -933,6 +951,11 @@ async def update_couple_profile(payload: CoupleProfileUpdate) -> dict[str, Any]:
                 assignments.append(f"{field} = {ph}")
                 params.append(val)
 
+        if "preset_tasks" in updates and updates["preset_tasks"] is not None:
+            cleaned_presets = [str(p).strip() for p in updates["preset_tasks"] if str(p).strip()]
+            assignments.append(f"preset_tasks_json = {ph}")
+            params.append(json.dumps(cleaned_presets, ensure_ascii=False))
+
         if assignments:
             assignments.append(f"updated_at = {ph}")
             params.append(now)
@@ -945,10 +968,10 @@ async def update_couple_profile(payload: CoupleProfileUpdate) -> dict[str, Any]:
 
         cur = conn.cursor()
         cur.execute(
-            "SELECT me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, updated_at "
+            "SELECT me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, preset_tasks_json, updated_at "
             "FROM couple_profile WHERE id = 1"
         )
-        profile = dict(cur.fetchone())
+        profile = _row_to_profile_dict(cur.fetchone())
         cur.close()
 
     await manager.broadcast({"event": "sync", "action": "profile_updated"})

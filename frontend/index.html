@@ -33,11 +33,10 @@
       </div>
 
       <div class="topbar-actions">
-        <div class="identity-switch" role="group" aria-label="Profil actif">
-          <button type="button" class="id-btn active" id="idBtnMe" data-identity="me">Valentin</button>
-          <button type="button" class="id-btn" id="idBtnWife" data-identity="wife">Lisa</button>
-        </div>
-        <button type="button" class="icon-btn" id="editProfileBtn" aria-label="Prénoms" title="Prénoms">
+        <button type="button" class="icon-btn" id="toggleSearchBtn" aria-label="Rechercher" title="Rechercher">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </button>
+        <button type="button" class="icon-btn" id="editProfileBtn" aria-label="Paramètres" title="Paramètres">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
         <button type="button" class="icon-btn" id="themeToggleBtn" aria-label="Thème" title="Changer le thème">
@@ -49,16 +48,21 @@
       </div>
     </header>
 
-    <!-- Centered Primary Add Bar (Task or High-Level Event) -->
+    <div class="search-drawer hidden" id="searchDrawer">
+      <input type="search" id="taskSearchInput" placeholder="Rechercher une tâche, course ou événement…" />
+    </div>
+
+    <!-- Centered 3-Mode Add Bar (Tâche | Événement | Courses) -->
     <section class="hero-composer">
       <div class="mode-switch-wrap">
         <div class="mode-switch" role="tablist" aria-label="Type d'ajout">
           <button type="button" class="mode-btn active" id="modeTaskBtn" data-mode="task">Tâche</button>
           <button type="button" class="mode-btn" id="modeEventBtn" data-mode="event">Événement</button>
+          <button type="button" class="mode-btn" id="modeCourseBtn" data-mode="courses">Courses</button>
         </div>
       </div>
 
-      <!-- TASK COMPOSER -->
+      <!-- 1. TASK COMPOSER -->
       <div class="composer-card" id="taskComposerCard">
         <form id="quickAddForm" autocomplete="off">
           <div class="composer-row">
@@ -73,14 +77,22 @@
             <button type="submit" class="btn-add">Ajouter</button>
           </div>
 
-          <div class="preset-tasks-row" id="presetTasksRow" aria-label="Modèles rapides">
-            <button type="button" class="preset-task-pill" data-prefill="Deep clean salle de bain hebdo">Deep clean salle de bain</button>
-            <button type="button" class="preset-task-pill" data-prefill="Deep clean cuisine hebdo">Deep clean cuisine</button>
+          <div class="task-options-row">
+            <label class="recurring-check-label">
+              <input type="checkbox" id="taskRecurringCheck" />
+              <span>Récurrente</span>
+            </label>
+            <div class="recurring-assignee-switch hidden" id="taskRecurringAssigneeWrap">
+              <button type="button" class="rec-who-btn active" id="recWhoMe" data-rec-who="me">Valentin</button>
+              <button type="button" class="rec-who-btn" id="recWhoWife" data-rec-who="wife">Lisa</button>
+            </div>
           </div>
+
+          <div class="preset-tasks-row" id="presetTasksRow" aria-label="Pré-suggestions"></div>
         </form>
       </div>
 
-      <!-- EVENT COMPOSER (High-Level Invites & Calendar Sync) -->
+      <!-- 2. EVENT COMPOSER -->
       <div class="composer-card hidden" id="eventComposerCard">
         <form id="eventAddForm" autocomplete="off">
           <div class="event-presets" aria-label="Modèles rapides">
@@ -119,67 +131,122 @@
         </form>
       </div>
 
-      <!-- One small living grocery suggestion pill (only when no active Courses task exists) -->
-      <div class="suggestion-row hidden" id="grocerySuggestionRow">
-        <button type="button" class="suggestion-pill" id="grocerySuggestionBtn">+ Liste Courses</button>
-        <button type="button" class="suggestion-skip" id="grocerySuggestionSkip" title="Autre idée" aria-label="Autre suggestion">↻</button>
+      <!-- 3. COURSES COMPOSER -->
+      <div class="composer-card hidden" id="courseComposerCard">
+        <form id="courseAddForm" autocomplete="off">
+          <div class="composer-row">
+            <span class="composer-plus">+</span>
+            <input
+              type="text"
+              id="courseAddInput"
+              placeholder="Ajouter aux courses… (ex: Lait 2L, Pain)"
+              maxlength="200"
+              required
+            />
+            <button type="submit" class="btn-add">Ajouter</button>
+          </div>
+        </form>
       </div>
     </section>
 
-    <!-- Quiet Filter & Search Strip -->
-    <div class="controls-strip">
-      <nav class="filters" aria-label="Filtres">
-        <button type="button" class="filter-chip active" data-filter-type="all" data-filter-value="all">Tout</button>
-        <button type="button" class="filter-chip" id="filterChipMe" data-filter-type="assignee" data-filter-value="me">Valentin</button>
-        <button type="button" class="filter-chip" id="filterChipWife" data-filter-type="assignee" data-filter-value="wife">Lisa</button>
-        <button type="button" class="filter-chip" data-filter-type="item_type" data-filter-value="event">Événements</button>
-      </nav>
-
-      <button type="button" class="icon-btn" id="toggleSearchBtn" aria-label="Rechercher" title="Rechercher">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      </button>
-    </div>
-
-    <div class="search-drawer hidden" id="searchDrawer">
-      <input type="search" id="taskSearchInput" placeholder="Rechercher une tâche, un événement ou un lieu…" />
-    </div>
-
-    <!-- Single Unified List with Subtle Perched Cat Silhouette -->
-    <main class="task-sections">
-      <div class="list-stage">
-        <svg class="perched-cat" viewBox="0 0 88 40" fill="none" aria-hidden="true">
-          <path d="M18 39c0-9 6-16 14-18l3-10 7 6c3-1 7-1 10 0l7-6 3 10c7 2 11 9 11 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M18 39c-7 0-12-4-12-9 0-3 2-6 5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <path d="M39 27c1.5 1.5 3.5 1.5 5 0M51 27c1.5 1.5 3.5 1.5 5 0" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
-
-        <div class="surface-list-wrap">
-          <ul class="task-list" id="activeTaskList"></ul>
-          <div class="empty-state hidden" id="emptyState">
-            Rien à faire ce soir. Ajoutez une tâche ci-dessus.
+    <!-- Single Page Layout: Tasks + Recurring Split Carousel on Right | Courses | Events at Bottom -->
+    <main class="main-stack">
+      <div class="tasks-and-recurring">
+        <!-- SECTION: TÂCHES (Flat, no temporal buckets) -->
+        <section id="sec-tasks" class="section-panel">
+          <div class="section-title-row">
+            <h2>Tâches</h2>
           </div>
-        </div>
+
+          <div class="list-stage">
+            <svg class="perched-cat" viewBox="0 0 88 40" fill="none" aria-hidden="true">
+              <path d="M18 39c0-9 6-16 14-18l3-10 7 6c3-1 7-1 10 0l7-6 3 10c7 2 11 9 11 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M18 39c-7 0-12-4-12-9 0-3 2-6 5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M39 27c1.5 1.5 3.5 1.5 5 0M51 27c1.5 1.5 3.5 1.5 5 0" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+
+            <div class="surface-list-wrap">
+              <ul class="task-list" id="activeTaskList"></ul>
+              <div class="empty-state hidden" id="emptyState">
+                Rien à faire. Ajoutez une tâche ci-dessus.
+              </div>
+            </div>
+          </div>
+
+          <section class="completed-section" aria-labelledby="completedHeading">
+            <div class="completed-header">
+              <button type="button" class="section-toggle" id="toggleCompletedBtn">
+                <span id="completedHeading">Terminées (0)</span>
+                <span id="completedChevron">▾</span>
+              </button>
+              <div class="completed-actions">
+                <button type="button" class="btn-text hidden" id="resetRoutinesBtn">Relancer récurrentes</button>
+                <button type="button" class="btn-text danger hidden" id="clearCompletedBtn">Effacer</button>
+              </div>
+            </div>
+            <div class="surface-list-wrap hidden" id="completedWrap">
+              <ul class="task-list" id="completedTaskList"></ul>
+            </div>
+          </section>
+        </section>
+
+        <!-- SECTION: TÂCHES RÉCURRENTES (Right column / Carousel split Valentin vs Lisa) -->
+        <aside id="sec-recurring" class="recurring-panel" aria-label="Tâches récurrentes">
+          <div class="section-title-row">
+            <h2>Récurrentes</h2>
+          </div>
+
+          <div class="recurring-lane">
+            <div class="lane-header">
+              <span class="lane-dot lane-dot-me"></span>
+              <span id="laneTitleMe">Valentin</span>
+            </div>
+            <div class="recurring-carousel" id="recurringMeList"></div>
+            <div class="lane-empty hidden" id="recurringMeEmpty">Aucune tâche récurrente</div>
+          </div>
+
+          <div class="recurring-lane">
+            <div class="lane-header">
+              <span class="lane-dot lane-dot-wife"></span>
+              <span id="laneTitleWife">Lisa</span>
+            </div>
+            <div class="recurring-carousel" id="recurringWifeList"></div>
+            <div class="lane-empty hidden" id="recurringWifeEmpty">Aucune tâche récurrente</div>
+          </div>
+        </aside>
       </div>
 
-      <section class="completed-section" aria-labelledby="completedHeading">
-        <div class="completed-header">
-          <button type="button" class="section-toggle" id="toggleCompletedBtn">
-            <span id="completedHeading">Terminées (0)</span>
-            <span id="completedChevron">▾</span>
-          </button>
-          <div class="completed-actions">
-            <button type="button" class="btn-text hidden" id="resetRoutinesBtn">Relancer récurrentes</button>
-            <button type="button" class="btn-text danger hidden" id="clearCompletedBtn">Effacer</button>
+      <!-- SECTION: COURSES (Same level as Tasks & Events) -->
+      <section id="sec-courses" class="section-panel">
+        <div class="section-title-row">
+          <h2>Courses</h2>
+          <span class="section-count" id="coursesCountLabel">0</span>
+        </div>
+        <div class="surface-list-wrap">
+          <ul class="task-list" id="coursesList"></ul>
+          <div class="empty-state hidden" id="coursesEmptyState">
+            Liste de courses vide.
           </div>
         </div>
-        <div class="surface-list-wrap hidden" id="completedWrap">
-          <ul class="task-list" id="completedTaskList"></ul>
+      </section>
+
+      <!-- SECTION: ÉVÉNEMENTS (Always at the bottom) -->
+      <section id="sec-events" class="section-panel">
+        <div class="section-title-row">
+          <h2>Événements</h2>
+          <span class="section-count" id="eventsCountLabel">0</span>
+        </div>
+        <div class="surface-list-wrap">
+          <ul class="task-list" id="eventsList"></ul>
+          <div class="empty-state hidden" id="eventsEmptyState">
+            Aucun événement prévu.
+          </div>
         </div>
       </section>
     </main>
   </div>
 
-  <!-- Task / Event Detail Drawer -->
+  <!-- Task / Event / Course Detail Drawer -->
   <div class="modal-backdrop hidden" id="taskDrawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitleHeading">
     <div class="modal-card">
       <div class="modal-header">
@@ -257,24 +324,34 @@
     </div>
   </div>
 
-  <!-- Profile Modal -->
+  <!-- Settings Modal (Names for Recurring Tasks + Editable Pre-Suggestions) -->
   <div class="modal-backdrop hidden" id="profileModal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="profileModalTitle">Prénoms</h3>
+        <h3 id="profileModalTitle">Paramètres</h3>
         <button type="button" class="btn-close" id="closeProfileModalBtn" aria-label="Fermer">✕</button>
       </div>
       <form id="profileForm" class="drawer-form">
         <div class="field-grid">
           <label class="field-group">
-            <span>Prénom 1 (@me)</span>
+            <span>Prénom 1 (Récurrentes)</span>
             <input type="text" id="profMeName" maxlength="32" required />
           </label>
           <label class="field-group">
-            <span>Prénom 2 (@wife)</span>
+            <span>Prénom 2 (Récurrentes)</span>
             <input type="text" id="profWifeName" maxlength="32" required />
           </label>
         </div>
+
+        <div class="presets-editor-box">
+          <span class="field-label">Pré-suggestions (Tâches)</span>
+          <ul class="settings-presets-list" id="settingsPresetsList"></ul>
+          <div class="composer-row compact">
+            <input type="text" id="newPresetInput" placeholder="Ajouter une pré-suggestion…" maxlength="80" />
+            <button type="button" class="btn-soft" id="addPresetBtn">+</button>
+          </div>
+        </div>
+
         <div class="drawer-footer">
           <span></span>
           <button type="submit" class="btn-add">Enregistrer</button>
@@ -310,10 +387,13 @@
   </div>
 
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
-  <button type="button" class="mobile-mode-fab" id="mobileModeFab" aria-label="Basculer Tâche / Événement" title="Basculer Tâche / Événement">
-    <span id="mobileFabIcon">📅</span>
-    <span id="mobileFabLabel">Événement</span>
-  </button>
+
+  <!-- 3-Button Floating Bottom-Right Quick Dock -->
+  <nav class="quick-dock" id="quickDock" aria-label="Accès rapide">
+    <button type="button" class="dock-btn active" data-dock-target="sec-tasks" data-dock-mode="task">Tâches</button>
+    <button type="button" class="dock-btn" data-dock-target="sec-events" data-dock-mode="event">Événements</button>
+    <button type="button" class="dock-btn" data-dock-target="sec-courses" data-dock-mode="courses">Courses</button>
+  </nav>
 
   <script src="/app.js"></script>
 </body>

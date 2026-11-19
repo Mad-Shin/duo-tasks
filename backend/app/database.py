@@ -191,6 +191,7 @@ def init_db() -> None:
             love_note TEXT NOT NULL DEFAULT 'On fait quoi de beau ce soir ? ✨',
             love_note_author TEXT NOT NULL DEFAULT 'both',
             kudos_count INTEGER NOT NULL DEFAULT 0,
+            preset_tasks_json TEXT NOT NULL DEFAULT '["Deep clean salle de bain hebdo", "Deep clean cuisine hebdo"]',
             updated_at TEXT NOT NULL DEFAULT ''
         )
         """
@@ -220,6 +221,14 @@ def init_db() -> None:
         ]
         for col_name, col_def in migrations:
             _safe_add_column(cur, mode, "tasks", col_name, col_def)
+
+        _safe_add_column(
+            cur,
+            mode,
+            "couple_profile",
+            "preset_tasks_json",
+            "TEXT NOT NULL DEFAULT '[\"Deep clean salle de bain hebdo\", \"Deep clean cuisine hebdo\"]'",
+        )
 
         # Seed default grocery staples idempotently
         cur.execute("SELECT name FROM grocery_staples")

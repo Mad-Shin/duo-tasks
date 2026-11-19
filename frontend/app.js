@@ -12,31 +12,20 @@ const CATEGORY_LABELS = {
   admin: "Admin"
 };
 
-const TEMPORAL_BUCKETS = [
-  { key: "today", label: "Aujourd'hui" },
-  { key: "tomorrow", label: "Demain" },
-  { key: "weekend", label: "Ce week-end" },
-  { key: "week", label: "Cette semaine" },
-  { key: "later", label: "Plus tard" }
-];
-
-const SVG_SNOOZE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>';
+const DEFAULT_PRESETS = ["Deep clean salle de bain hebdo", "Deep clean cuisine hebdo"];
 const SVG_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 
 const state = {
   composerMode: "task",
-  identity: localStorage.getItem("duotasks_identity") || "me",
+  recurringWho: "me",
   theme: localStorage.getItem("duotasks_theme_v2") || "dark",
   profile: {
     me_name: "Valentin",
-    wife_name: "Lisa"
+    wife_name: "Lisa",
+    preset_tasks: [...DEFAULT_PRESETS]
   },
+  draftPresets: [...DEFAULT_PRESETS],
   tasks: [],
-  allTasks: [],
-  staples: [],
-  suggestionIndex: 0,
-  filterType: "all",
-  filterValue: "all",
   searchQuery: "",
   showCompleted: false,
   editingTaskId: null,
@@ -52,51 +41,69 @@ const els = {
   installHelpBtn: document.getElementById("installHelpBtn"),
   installModal: document.getElementById("installModal"),
   closeModalBtn: document.getElementById("closeModalBtn"),
-  idBtnMe: document.getElementById("idBtnMe"),
-  idBtnWife: document.getElementById("idBtnWife"),
-  filterChipMe: document.getElementById("filterChipMe"),
-  filterChipWife: document.getElementById("filterChipWife"),
 
-  // Profile Modal
+  // Settings Modal
   editProfileBtn: document.getElementById("editProfileBtn"),
   profileModal: document.getElementById("profileModal"),
   closeProfileModalBtn: document.getElementById("closeProfileModalBtn"),
   profileForm: document.getElementById("profileForm"),
   profMeName: document.getElementById("profMeName"),
   profWifeName: document.getElementById("profWifeName"),
+  settingsPresetsList: document.getElementById("settingsPresetsList"),
+  newPresetInput: document.getElementById("newPresetInput"),
+  addPresetBtn: document.getElementById("addPresetBtn"),
 
   // Mode Switch & Composers
   modeTaskBtn: document.getElementById("modeTaskBtn"),
   modeEventBtn: document.getElementById("modeEventBtn"),
-  mobileModeFab: document.getElementById("mobileModeFab"),
-  mobileFabIcon: document.getElementById("mobileFabIcon"),
-  mobileFabLabel: document.getElementById("mobileFabLabel"),
+  modeCourseBtn: document.getElementById("modeCourseBtn"),
   taskComposerCard: document.getElementById("taskComposerCard"),
   eventComposerCard: document.getElementById("eventComposerCard"),
+  courseComposerCard: document.getElementById("courseComposerCard"),
   form: document.getElementById("quickAddForm"),
   input: document.getElementById("quickAddInput"),
+  taskRecurringCheck: document.getElementById("taskRecurringCheck"),
+  taskRecurringAssigneeWrap: document.getElementById("taskRecurringAssigneeWrap"),
+  recWhoMe: document.getElementById("recWhoMe"),
+  recWhoWife: document.getElementById("recWhoWife"),
+  presetTasksRow: document.getElementById("presetTasksRow"),
   eventAddForm: document.getElementById("eventAddForm"),
   eventTitleInput: document.getElementById("eventTitleInput"),
   eventDateInput: document.getElementById("eventDateInput"),
   eventTimeInput: document.getElementById("eventTimeInput"),
   eventLocationInput: document.getElementById("eventLocationInput"),
-  grocerySuggestionRow: document.getElementById("grocerySuggestionRow"),
-  grocerySuggestionBtn: document.getElementById("grocerySuggestionBtn"),
-  grocerySuggestionSkip: document.getElementById("grocerySuggestionSkip"),
+  courseAddForm: document.getElementById("courseAddForm"),
+  courseAddInput: document.getElementById("courseAddInput"),
 
-  // Search & List
+  // Search & Sections
   toggleSearchBtn: document.getElementById("toggleSearchBtn"),
   searchDrawer: document.getElementById("searchDrawer"),
   searchInput: document.getElementById("taskSearchInput"),
   activeList: document.getElementById("activeTaskList"),
+  emptyState: document.getElementById("emptyState"),
   completedList: document.getElementById("completedTaskList"),
   completedWrap: document.getElementById("completedWrap"),
-  emptyState: document.getElementById("emptyState"),
   completedHeading: document.getElementById("completedHeading"),
   toggleCompletedBtn: document.getElementById("toggleCompletedBtn"),
   completedChevron: document.getElementById("completedChevron"),
   resetRoutinesBtn: document.getElementById("resetRoutinesBtn"),
   clearCompletedBtn: document.getElementById("clearCompletedBtn"),
+
+  // Recurring Right Panel
+  laneTitleMe: document.getElementById("laneTitleMe"),
+  laneTitleWife: document.getElementById("laneTitleWife"),
+  recurringMeList: document.getElementById("recurringMeList"),
+  recurringWifeList: document.getElementById("recurringWifeList"),
+  recurringMeEmpty: document.getElementById("recurringMeEmpty"),
+  recurringWifeEmpty: document.getElementById("recurringWifeEmpty"),
+
+  // Courses & Events Sections
+  coursesCountLabel: document.getElementById("coursesCountLabel"),
+  coursesList: document.getElementById("coursesList"),
+  coursesEmptyState: document.getElementById("coursesEmptyState"),
+  eventsCountLabel: document.getElementById("eventsCountLabel"),
+  eventsList: document.getElementById("eventsList"),
+  eventsEmptyState: document.getElementById("eventsEmptyState"),
 
   // Task / Event Drawer
   taskDrawer: document.getElementById("taskDrawer"),
@@ -119,7 +126,7 @@ const els = {
 function partnerName(key) {
   if (key === "me") return state.profile.me_name || "Valentin";
   if (key === "wife") return state.profile.wife_name || "Lisa";
-  return "Valentin & Lisa";
+  return `${state.profile.me_name || "Valentin"} & ${state.profile.wife_name || "Lisa"}`;
 }
 
 function toLocalIsoDate(d) {
@@ -130,7 +137,6 @@ function toLocalIsoDate(d) {
 }
 
 function nextWeekdayDate(targetWeekday) {
-  // 0=Sun, 6=Sat
   const now = new Date();
   const diff = (targetWeekday - now.getDay() + 7) % 7;
   const res = new Date(now);
@@ -157,10 +163,6 @@ function inferDueLabelFromIso(isoDate) {
   tmr.setDate(now.getDate() + 1);
   if (isoDate === todayIso) return "today";
   if (isoDate === toLocalIsoDate(tmr)) return "tomorrow";
-  const [y, m, d] = isoDate.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  const diffDays = Math.round((dt - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
-  if (diffDays >= 0 && diffDays <= 6 && (dt.getDay() === 6 || dt.getDay() === 0)) return "weekend";
   return "later";
 }
 
@@ -177,8 +179,7 @@ function buildGoogleCalendarUrl(task) {
   } else {
     const [y, m, d] = (task.event_date || task.due_date || toLocalIsoDate(new Date())).split("-").map(Number);
     const next = new Date(y, m - 1, d + 1);
-    const nextCompact = toLocalIsoDate(next).replace(/-/g, "");
-    datesParam = `${rawDate}/${nextCompact}`;
+    datesParam = `${rawDate}/${toLocalIsoDate(next).replace(/-/g, "")}`;
   }
 
   const params = new URLSearchParams({
@@ -187,7 +188,6 @@ function buildGoogleCalendarUrl(task) {
     dates: datesParam
   });
   if (task.location) params.set("location", task.location);
-  if (task.notes) params.set("details", task.notes);
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
@@ -197,21 +197,36 @@ function applyTheme(theme) {
   localStorage.setItem("duotasks_theme_v2", theme);
 }
 
-function applyIdentity(identity) {
-  state.identity = identity;
-  localStorage.setItem("duotasks_identity", identity);
-  document.querySelectorAll(".id-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.identity === identity);
+function setComposerMode(mode) {
+  state.composerMode = mode;
+  els.modeTaskBtn.classList.toggle("active", mode === "task");
+  els.modeEventBtn.classList.toggle("active", mode === "event");
+  els.modeCourseBtn.classList.toggle("active", mode === "courses");
+  els.taskComposerCard.classList.toggle("hidden", mode !== "task");
+  els.eventComposerCard.classList.toggle("hidden", mode !== "event");
+  els.courseComposerCard.classList.toggle("hidden", mode !== "courses");
+
+  document.querySelectorAll(".dock-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.dockMode === mode);
   });
+
+  if (mode === "event") {
+    if (!els.eventDateInput.value) els.eventDateInput.value = nextWeekdayDate(6);
+    els.eventTitleInput.focus();
+  } else if (mode === "courses") {
+    els.courseAddInput.focus();
+  } else {
+    els.input.focus();
+  }
 }
 
 function renderProfileLabels() {
   const me = partnerName("me");
   const wife = partnerName("wife");
-  els.idBtnMe.textContent = me;
-  els.idBtnWife.textContent = wife;
-  els.filterChipMe.textContent = me;
-  els.filterChipWife.textContent = wife;
+  els.recWhoMe.textContent = me;
+  els.recWhoWife.textContent = wife;
+  els.laneTitleMe.textContent = me;
+  els.laneTitleWife.textContent = wife;
   if (els.editAssignee.options.length >= 3) {
     els.editAssignee.options[0].textContent = `${me} & ${wife}`;
     els.editAssignee.options[1].textContent = me;
@@ -219,24 +234,28 @@ function renderProfileLabels() {
   }
 }
 
-function setComposerMode(mode) {
-  state.composerMode = mode;
-  els.modeTaskBtn.classList.toggle("active", mode === "task");
-  els.modeEventBtn.classList.toggle("active", mode === "event");
-  els.taskComposerCard.classList.toggle("hidden", mode !== "task");
-  els.eventComposerCard.classList.toggle("hidden", mode !== "event");
-  if (els.mobileFabIcon && els.mobileFabLabel) {
-    els.mobileFabIcon.textContent = mode === "task" ? "📅" : "✓";
-    els.mobileFabLabel.textContent = mode === "task" ? "Événement" : "Tâche";
-  }
-  if (mode === "event") {
-    if (!els.eventDateInput.value) {
-      els.eventDateInput.value = nextWeekdayDate(6);
-    }
-    els.eventTitleInput.focus();
-  } else {
-    els.input.focus();
-  }
+function renderPresetButtons() {
+  const presets = Array.isArray(state.profile.preset_tasks) && state.profile.preset_tasks.length > 0
+    ? state.profile.preset_tasks
+    : DEFAULT_PRESETS;
+  els.presetTasksRow.innerHTML = "";
+  presets.forEach((text) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "preset-task-pill";
+    btn.textContent = text.replace(/\s+(?:hebdo|tous les jours|quotidien|mensuel)$/i, "");
+    btn.title = text;
+    btn.addEventListener("click", () => {
+      els.input.value = text;
+      const isRec = /\b(?:hebdo|weekly|daily|tous les jours|quotidien|mensuel|monthly)\b/i.test(text);
+      els.taskRecurringCheck.checked = isRec;
+      els.taskRecurringAssigneeWrap.classList.toggle("hidden", !isRec);
+      els.input.focus();
+      const len = els.input.value.length;
+      els.input.setSelectionRange(len, len);
+    });
+    els.presetTasksRow.appendChild(btn);
+  });
 }
 
 function showToast(message, actionLabel = null, actionCallback = null) {
@@ -279,94 +298,148 @@ async function apiJson(url, options = {}) {
 
 async function refreshAll() {
   const params = new URLSearchParams();
-  if (state.filterType === "assignee") params.set("assignee", state.filterValue);
-  else if (state.filterType === "category") params.set("category", state.filterValue);
-  else if (state.filterType === "due") params.set("due_label", state.filterValue);
-  else if (state.filterType === "recurring") params.set("recurring", "true");
-  else if (state.filterType === "item_type") params.set("item_type", state.filterValue);
   if (state.searchQuery.trim()) params.set("search", state.searchQuery.trim());
   const qs = params.toString() ? `?${params.toString()}` : "";
 
-  const [filteredTasks, allTasks, staples, profile] = await Promise.all([
+  const [tasks, profile] = await Promise.all([
     apiJson(`/api/tasks${qs}`),
-    apiJson("/api/tasks"),
-    apiJson("/api/groceries/staples"),
     apiJson("/api/couple/profile")
   ]);
 
-  state.tasks = filteredTasks;
-  state.allTasks = allTasks;
-  state.staples = staples;
+  state.tasks = tasks;
   state.profile = profile;
 
   renderProfileLabels();
-  renderOneSuggestion();
-  renderTasks();
+  renderPresetButtons();
+  renderAllSections();
 }
 
-function renderOneSuggestion() {
-  const hasActiveGroceriesTask = state.allTasks.some((t) => !t.completed && t.category === "courses");
-  if (hasActiveGroceriesTask || state.staples.length === 0) {
-    els.grocerySuggestionRow.classList.add("hidden");
-    return;
-  }
-  const suggestion = state.staples[state.suggestionIndex % state.staples.length];
-  els.grocerySuggestionRow.classList.remove("hidden");
-  const qtySuffix = suggestion.default_qty ? ` (${suggestion.default_qty})` : "";
-  els.grocerySuggestionBtn.textContent = `+ Courses : ${suggestion.name}${qtySuffix}`;
-}
-
-function getBucketKey(task) {
-  const due = (task.due_label || "today").toLowerCase();
-  if (due === "today" || task.priority === 1) return "today";
-  if (due === "tomorrow") return "tomorrow";
-  if (due === "weekend") return "weekend";
-  if (["lundi", "mardi", "mercredi", "jeudi", "vendredi"].includes(due)) return "week";
-  return "later";
-}
-
-function renderTasks() {
+function renderAllSections() {
   const active = state.tasks.filter((t) => !t.completed);
   const completed = state.tasks.filter((t) => t.completed);
 
-  const globalActive = state.allTasks.filter((t) => !t.completed).length;
-  els.taskCounter.textContent = `${globalActive} à faire`;
-  els.completedHeading.textContent = `Terminées (${completed.length})`;
+  const regularTasks = active.filter((t) => t.item_type !== "event" && t.category !== "courses" && !t.recurring);
+  const recurringTasks = active.filter((t) => t.recurring && t.item_type !== "event" && t.category !== "courses");
+  const courseTasks = active.filter((t) => t.category === "courses" && t.item_type !== "event");
+  const eventTasks = active.filter((t) => t.item_type === "event");
 
+  els.taskCounter.textContent = `${active.length} à faire`;
+
+  // 1. Main Flat Tasks
   els.activeList.innerHTML = "";
-  els.completedList.innerHTML = "";
-
-  if (active.length === 0) {
+  if (regularTasks.length === 0) {
     els.emptyState.classList.remove("hidden");
   } else {
     els.emptyState.classList.add("hidden");
-    const grouped = new Map();
-    TEMPORAL_BUCKETS.forEach((b) => grouped.set(b.key, []));
-    active.forEach((task) => grouped.get(getBucketKey(task)).push(task));
-
-    const nonEmptyBuckets = TEMPORAL_BUCKETS.filter((b) => grouped.get(b.key).length > 0);
-    const showHeaders = nonEmptyBuckets.length > 1;
-    nonEmptyBuckets.forEach((bucket) => {
-      if (showHeaders) {
-        const hdr = document.createElement("li");
-        hdr.className = "task-group-header";
-        hdr.textContent = bucket.label;
-        els.activeList.appendChild(hdr);
-      }
-      grouped.get(bucket.key).forEach((task) => els.activeList.appendChild(createTaskElement(task)));
-    });
+    regularTasks.forEach((task) => els.activeList.appendChild(createListRow(task)));
   }
 
-  completed.forEach((task) => els.completedList.appendChild(createTaskElement(task)));
+  // 2. Recurring Carousel Split (Valentin vs Lisa)
+  const recMe = recurringTasks.filter((t) => t.assignee !== "wife");
+  const recWife = recurringTasks.filter((t) => t.assignee === "wife");
+
+  els.recurringMeList.innerHTML = "";
+  els.recurringMeEmpty.classList.toggle("hidden", recMe.length > 0);
+  recMe.forEach((t) => els.recurringMeList.appendChild(createRecurringCard(t)));
+
+  els.recurringWifeList.innerHTML = "";
+  els.recurringWifeEmpty.classList.toggle("hidden", recWife.length > 0);
+  recWife.forEach((t) => els.recurringWifeList.appendChild(createRecurringCard(t)));
+
+  // 3. Courses Section
+  els.coursesCountLabel.textContent = String(courseTasks.length);
+  els.coursesList.innerHTML = "";
+  els.coursesEmptyState.classList.toggle("hidden", courseTasks.length > 0);
+  courseTasks.forEach((task) => els.coursesList.appendChild(createListRow(task)));
+
+  // 4. Events Section (always at the bottom)
+  els.eventsCountLabel.textContent = String(eventTasks.length);
+  els.eventsList.innerHTML = "";
+  els.eventsEmptyState.classList.toggle("hidden", eventTasks.length > 0);
+  eventTasks.forEach((task) => els.eventsList.appendChild(createListRow(task)));
+
+  // 5. Completed
+  els.completedHeading.textContent = `Terminées (${completed.length})`;
+  els.completedList.innerHTML = "";
+  completed.forEach((task) => els.completedList.appendChild(createListRow(task)));
   els.completedWrap.classList.toggle("hidden", !state.showCompleted || completed.length === 0);
   els.completedChevron.textContent = state.showCompleted ? "▾" : "▸";
   els.clearCompletedBtn.classList.toggle("hidden", completed.length === 0);
 
-  const hasDoneRecurring = state.allTasks.some((t) => t.recurring && t.completed);
+  const hasDoneRecurring = completed.some((t) => t.recurring);
   els.resetRoutinesBtn.classList.toggle("hidden", !hasDoneRecurring);
 }
 
-function createTaskElement(task) {
+function createRecurringCard(task) {
+  const card = document.createElement("div");
+  card.className = "rec-card";
+
+  const top = document.createElement("div");
+  top.className = "rec-card-top";
+
+  const checkBtn = document.createElement("button");
+  checkBtn.type = "button";
+  checkBtn.className = `check-btn prio-${task.priority}`;
+  checkBtn.setAttribute("aria-label", "Marquer terminée");
+  checkBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleTask(task);
+  });
+
+  const title = document.createElement("div");
+  title.className = "rec-card-title";
+  title.textContent = task.title;
+  title.addEventListener("click", () => openTaskDrawer(task));
+
+  top.appendChild(checkBtn);
+  top.appendChild(title);
+
+  const foot = document.createElement("div");
+  foot.className = "rec-card-foot";
+
+  const rule = document.createElement("span");
+  rule.className = "rec-rule-badge";
+  rule.textContent = RECURRENCE_LABELS[task.recurrence_rule] || "Récurrent";
+
+  const actions = document.createElement("div");
+  actions.className = "rec-card-actions";
+
+  const swapBtn = document.createElement("button");
+  swapBtn.type = "button";
+  swapBtn.className = "rec-swap-btn";
+  const nextWho = task.assignee === "wife" ? "me" : "wife";
+  swapBtn.title = `Passer à ${partnerName(nextWho)}`;
+  swapBtn.textContent = `⇄ ${partnerName(nextWho)}`;
+  swapBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    await apiJson(`/api/tasks/${task.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ assignee: nextWho })
+    });
+    await refreshAll();
+  });
+
+  const delBtn = document.createElement("button");
+  delBtn.type = "button";
+  delBtn.className = "row-action-btn delete";
+  delBtn.setAttribute("aria-label", "Supprimer");
+  delBtn.innerHTML = SVG_TRASH;
+  delBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    deleteTask(task);
+  });
+
+  actions.appendChild(swapBtn);
+  actions.appendChild(delBtn);
+  foot.appendChild(rule);
+  foot.appendChild(actions);
+
+  card.appendChild(top);
+  card.appendChild(foot);
+  return card;
+}
+
+function createListRow(task) {
   const li = document.createElement("li");
   li.className = `task-item${task.completed ? " completed" : ""}`;
 
@@ -386,41 +459,26 @@ function createTaskElement(task) {
 
   const title = document.createElement("div");
   title.className = "task-title";
-  title.textContent = task.item_type === "event" ? `📅 ${task.title}` : task.title;
+  title.textContent = task.title;
   content.appendChild(title);
-
-  if (task.notes) {
-    const snippet = document.createElement("div");
-    snippet.className = "task-notes-snippet";
-    snippet.textContent = task.notes;
-    content.appendChild(snippet);
-  }
 
   const metaParts = [];
   if (task.item_type === "event" && task.event_date) {
     const dateTxt = formatShortFrDate(task.event_date);
     metaParts.push({ text: task.event_time ? `${dateTxt} · ${task.event_time}` : dateTxt, accent: true });
     if (task.location) metaParts.push({ text: task.location, accent: false });
-  } else if (task.event_time) {
-    metaParts.push({ text: task.event_time, accent: true });
-  }
-  if (task.assignee !== "both") {
-    metaParts.push({ text: partnerName(task.assignee), accent: false });
-  }
-  if (task.category && task.category !== "inbox" && !(task.item_type === "event" && task.category === "date")) {
-    metaParts.push({ text: CATEGORY_LABELS[task.category] || task.category, accent: task.category === "courses" });
+  } else {
+    if (task.event_time) metaParts.push({ text: task.event_time, accent: true });
+    if (task.location) metaParts.push({ text: task.location, accent: false });
   }
   if (task.quantity) {
     metaParts.push({ text: task.quantity, accent: true });
   }
-  if (task.item_type !== "event" && task.location) {
-    metaParts.push({ text: task.location, accent: false });
+  if (task.category && task.category !== "inbox" && task.category !== "courses" && !(task.item_type === "event" && task.category === "date")) {
+    metaParts.push({ text: CATEGORY_LABELS[task.category] || task.category, accent: false });
   }
-  if (task.item_type !== "event" && task.due_label && task.due_label !== "today") {
-    metaParts.push({ text: task.due_label, accent: task.due_label === "tomorrow" });
-  }
-  if (task.recurring) {
-    metaParts.push({ text: `↻ ${RECURRENCE_LABELS[task.recurrence_rule] || "Quotidien"}`, accent: false });
+  if (task.recurring && task.completed) {
+    metaParts.push({ text: partnerName(task.assignee), accent: false });
   }
 
   if (metaParts.length > 0) {
@@ -441,7 +499,6 @@ function createTaskElement(task) {
     content.appendChild(metaLine);
   }
 
-  // Seamless 1-Tap Apple & Google Calendar Sync buttons for events
   if (!task.completed && task.item_type === "event") {
     const syncBar = document.createElement("div");
     syncBar.className = "cal-sync-bar";
@@ -467,20 +524,6 @@ function createTaskElement(task) {
   const actionsCol = document.createElement("div");
   actionsCol.className = "task-actions-col";
 
-  if (!task.completed && task.item_type !== "event" && task.due_label !== "tomorrow") {
-    const snoozeBtn = document.createElement("button");
-    snoozeBtn.type = "button";
-    snoozeBtn.className = "row-action-btn";
-    snoozeBtn.title = "Reporter à demain";
-    snoozeBtn.setAttribute("aria-label", "Reporter à demain");
-    snoozeBtn.innerHTML = SVG_SNOOZE;
-    snoozeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      snoozeToTomorrow(task);
-    });
-    actionsCol.appendChild(snoozeBtn);
-  }
-
   const delBtn = document.createElement("button");
   delBtn.type = "button";
   delBtn.className = "row-action-btn delete";
@@ -501,11 +544,11 @@ function createTaskElement(task) {
 async function toggleTask(task) {
   const targetCompleted = !task.completed;
   task.completed = targetCompleted;
-  renderTasks();
+  renderAllSections();
   try {
     await apiJson(`/api/tasks/${task.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ completed: targetCompleted, completed_by: state.identity })
+      body: JSON.stringify({ completed: targetCompleted, completed_by: task.assignee || "both" })
     });
     if (targetCompleted) {
       showToast("Terminée", "Annuler", async () => {
@@ -523,27 +566,14 @@ async function toggleTask(task) {
   }
 }
 
-async function snoozeToTomorrow(task) {
-  try {
-    await apiJson(`/api/tasks/${task.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ due_label: "tomorrow" })
-    });
-    showToast("Reportée à demain");
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-  }
-}
-
 async function deleteTask(taskOrId) {
   const snapshot = typeof taskOrId === "object"
     ? taskOrId
-    : state.allTasks.find((t) => t.id === taskOrId) || { id: taskOrId };
+    : state.tasks.find((t) => t.id === taskOrId) || { id: taskOrId };
   const taskId = snapshot.id;
 
   state.tasks = state.tasks.filter((t) => t.id !== taskId);
-  renderTasks();
+  renderAllSections();
   try {
     await apiJson(`/api/tasks/${taskId}`, { method: "DELETE" });
     if (snapshot.raw_input || snapshot.title) {
@@ -552,7 +582,6 @@ async function deleteTask(taskOrId) {
           method: "POST",
           body: JSON.stringify({
             raw_input: snapshot.raw_input || snapshot.title,
-            notes: snapshot.notes || "",
             assignee: snapshot.assignee,
             category: snapshot.category,
             priority: snapshot.priority,
@@ -560,12 +589,10 @@ async function deleteTask(taskOrId) {
             recurring: snapshot.recurring,
             recurrence_rule: snapshot.recurrence_rule,
             quantity: snapshot.quantity,
-            aisle: snapshot.aisle,
             item_type: snapshot.item_type || "task",
             event_date: snapshot.event_date || "",
             event_time: snapshot.event_time || "",
-            location: snapshot.location || "",
-            subtasks: snapshot.subtasks || []
+            location: snapshot.location || ""
           })
         });
         await refreshAll();
@@ -599,7 +626,7 @@ function openTaskDrawer(task) {
   els.editCategory.value = cat;
   els.editUrgentCheck.checked = Number(task.priority) === 1;
   els.editRecurrence.value = task.recurrence_rule || (task.recurring ? "daily" : "none");
-  els.editEventDate.value = task.event_date || task.due_date || "";
+  els.editEventDate.value = task.event_date || "";
   els.editEventTime.value = task.event_time || "";
   els.editLocation.value = task.location || "";
   els.editQuantity.value = task.quantity || "";
@@ -609,6 +636,27 @@ function openTaskDrawer(task) {
 function closeTaskDrawer() {
   state.editingTaskId = null;
   els.taskDrawer.classList.add("hidden");
+}
+
+function renderSettingsPresets() {
+  els.settingsPresetsList.innerHTML = "";
+  state.draftPresets.forEach((text, idx) => {
+    const li = document.createElement("li");
+    li.className = "settings-preset-item";
+    const span = document.createElement("span");
+    span.textContent = text;
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "btn-close";
+    del.textContent = "✕";
+    del.addEventListener("click", () => {
+      state.draftPresets.splice(idx, 1);
+      renderSettingsPresets();
+    });
+    li.appendChild(span);
+    li.appendChild(del);
+    els.settingsPresetsList.appendChild(li);
+  });
 }
 
 async function refreshHealth() {
@@ -660,25 +708,88 @@ function connectWebSocket() {
 
 // --- Events ---
 
-document.querySelectorAll(".id-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    applyIdentity(btn.dataset.identity || "me");
-  });
-});
-
 els.themeToggleBtn.addEventListener("click", () => {
   applyTheme(state.theme === "dark" ? "light" : "dark");
 });
 
 els.modeTaskBtn.addEventListener("click", () => setComposerMode("task"));
 els.modeEventBtn.addEventListener("click", () => setComposerMode("event"));
-if (els.mobileModeFab) {
-  els.mobileModeFab.addEventListener("click", () => {
-    setComposerMode(state.composerMode === "task" ? "event" : "task");
-  });
-}
+els.modeCourseBtn.addEventListener("click", () => setComposerMode("courses"));
 
-// Event template pills & quick date pills
+document.querySelectorAll(".dock-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const mode = btn.dataset.dockMode || "task";
+    const targetId = btn.dataset.dockTarget || "sec-tasks";
+    setComposerMode(mode);
+    const targetEl = document.getElementById(targetId);
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+});
+
+// Recurring checkbox in Task Composer
+els.taskRecurringCheck.addEventListener("change", () => {
+  els.taskRecurringAssigneeWrap.classList.toggle("hidden", !els.taskRecurringCheck.checked);
+});
+
+document.querySelectorAll(".rec-who-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    state.recurringWho = btn.dataset.recWho || "me";
+    document.querySelectorAll(".rec-who-btn").forEach((b) => {
+      b.classList.toggle("active", b === btn);
+    });
+  });
+});
+
+// Submit Task
+els.form.addEventListener("submit", async (evt) => {
+  evt.preventDefault();
+  const raw = els.input.value.trim();
+  if (!raw) return;
+
+  const body = { raw_input: raw, item_type: "task" };
+  if (els.taskRecurringCheck.checked) {
+    body.recurring = true;
+    body.recurrence_rule = /\b(?:tous les jours|quotidien|daily)\b/i.test(raw) ? "daily" : "weekly";
+    body.assignee = state.recurringWho;
+  }
+
+  els.input.value = "";
+  els.taskRecurringCheck.checked = false;
+  els.taskRecurringAssigneeWrap.classList.add("hidden");
+
+  try {
+    await apiJson("/api/tasks", { method: "POST", body: JSON.stringify(body) });
+    await refreshAll();
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+// Submit Course
+els.courseAddForm.addEventListener("submit", async (evt) => {
+  evt.preventDefault();
+  const raw = els.courseAddInput.value.trim();
+  if (!raw) return;
+  els.courseAddInput.value = "";
+  try {
+    await apiJson("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        raw_input: raw,
+        category: "courses",
+        item_type: "task",
+        recurring: false
+      })
+    });
+    await refreshAll();
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+// Event Presets & Quick Dates
 document.querySelectorAll(".preset-pill").forEach((pill) => {
   pill.addEventListener("click", () => {
     const preset = pill.dataset.preset || "";
@@ -713,7 +824,6 @@ els.eventAddForm.addEventListener("submit", async (evt) => {
   const title = els.eventTitleInput.value.trim();
   const eventDate = els.eventDateInput.value;
   if (!title || !eventDate) return;
-
   try {
     await apiJson("/api/tasks", {
       method: "POST",
@@ -739,10 +849,28 @@ els.eventAddForm.addEventListener("submit", async (evt) => {
   }
 });
 
+// Settings Modal (Names + Pre-Suggestions)
 els.editProfileBtn.addEventListener("click", () => {
   els.profMeName.value = state.profile.me_name || "Valentin";
   els.profWifeName.value = state.profile.wife_name || "Lisa";
+  state.draftPresets = [...(state.profile.preset_tasks || DEFAULT_PRESETS)];
+  renderSettingsPresets();
   els.profileModal.classList.remove("hidden");
+});
+
+els.addPresetBtn.addEventListener("click", () => {
+  const txt = els.newPresetInput.value.trim();
+  if (!txt) return;
+  state.draftPresets.push(txt);
+  els.newPresetInput.value = "";
+  renderSettingsPresets();
+});
+
+els.newPresetInput.addEventListener("keydown", (evt) => {
+  if (evt.key === "Enter") {
+    evt.preventDefault();
+    els.addPresetBtn.click();
+  }
 });
 
 els.closeProfileModalBtn.addEventListener("click", () => els.profileModal.classList.add("hidden"));
@@ -757,72 +885,19 @@ els.profileForm.addEventListener("submit", async (evt) => {
       method: "PATCH",
       body: JSON.stringify({
         me_name: els.profMeName.value.trim(),
-        wife_name: els.profWifeName.value.trim()
+        wife_name: els.profWifeName.value.trim(),
+        preset_tasks: state.draftPresets
       })
     });
     els.profileModal.classList.add("hidden");
-    showToast("Prénoms enregistrés");
+    showToast("Paramètres enregistrés");
     await refreshAll();
   } catch (err) {
     console.error(err);
   }
 });
 
-// 1-Tap Pre-Written Recurring Task Buttons (pre-fills input for quick adjustment)
-document.querySelectorAll(".preset-task-pill").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const prefill = btn.dataset.prefill || "";
-    if (!prefill) return;
-    els.input.value = prefill;
-    els.input.focus();
-    const len = els.input.value.length;
-    els.input.setSelectionRange(len, len);
-  });
-});
-
-els.form.addEventListener("submit", async (evt) => {
-  evt.preventDefault();
-  const raw = els.input.value.trim();
-  if (!raw) return;
-
-  els.input.value = "";
-  try {
-    await apiJson("/api/tasks", {
-      method: "POST",
-      body: JSON.stringify({ raw_input: raw })
-    });
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-  }
-});
-
-els.grocerySuggestionBtn.addEventListener("click", async () => {
-  if (state.staples.length === 0) return;
-  const suggestion = state.staples[state.suggestionIndex % state.staples.length];
-  const itemText = suggestion.default_qty
-    ? `${suggestion.name} (${suggestion.default_qty})`
-    : suggestion.name;
-  try {
-    await apiJson("/api/tasks", {
-      method: "POST",
-      body: JSON.stringify({
-        raw_input: `Courses : ${itemText} #courses @both`,
-        category: "courses"
-      })
-    });
-    showToast("Courses ajoutées");
-    await refreshAll();
-  } catch (err) {
-    console.error(err);
-  }
-});
-
-els.grocerySuggestionSkip.addEventListener("click", () => {
-  state.suggestionIndex += 1;
-  renderOneSuggestion();
-});
-
+// Search
 els.toggleSearchBtn.addEventListener("click", () => {
   els.searchDrawer.classList.toggle("hidden");
   if (!els.searchDrawer.classList.contains("hidden")) {
@@ -843,19 +918,10 @@ els.searchInput.addEventListener("input", () => {
   }, 160);
 });
 
-document.querySelectorAll(".filter-chip").forEach((chip) => {
-  chip.addEventListener("click", () => {
-    document.querySelectorAll(".filter-chip").forEach((c) => c.classList.remove("active"));
-    chip.classList.add("active");
-    state.filterType = chip.dataset.filterType || "all";
-    state.filterValue = chip.dataset.filterValue || "all";
-    refreshAll();
-  });
-});
-
+// Completed Section
 els.toggleCompletedBtn.addEventListener("click", () => {
   state.showCompleted = !state.showCompleted;
-  renderTasks();
+  renderAllSections();
 });
 
 els.resetRoutinesBtn.addEventListener("click", async () => {
@@ -870,6 +936,7 @@ els.clearCompletedBtn.addEventListener("click", async () => {
   await refreshAll();
 });
 
+// Task Drawer
 els.closeDrawerBtn.addEventListener("click", closeTaskDrawer);
 els.taskDrawer.addEventListener("click", (evt) => {
   if (evt.target === els.taskDrawer) closeTaskDrawer();
@@ -906,6 +973,7 @@ els.drawerDeleteBtn.addEventListener("click", async () => {
   await deleteTask(id);
 });
 
+// Install Modal
 els.installHelpBtn.addEventListener("click", () => els.installModal.classList.remove("hidden"));
 els.closeModalBtn.addEventListener("click", () => els.installModal.classList.add("hidden"));
 els.installModal.addEventListener("click", (evt) => {
@@ -917,7 +985,6 @@ if ("serviceWorker" in navigator) {
 }
 
 applyTheme(state.theme);
-applyIdentity(state.identity);
 refreshAll();
 connectWebSocket();
 refreshHealth();
