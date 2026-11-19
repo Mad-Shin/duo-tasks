@@ -73,26 +73,12 @@
             <button type="submit" class="btn-add">Ajouter</button>
           </div>
 
-          <div class="tag-picker" id="tagPicker">
-            <div class="tag-group" role="group" aria-label="Pour qui">
-              <button type="button" class="tag-pill active" data-tag-kind="assignee" data-tag-value="both">Duo</button>
-              <button type="button" class="tag-pill" id="tagPillMe" data-tag-kind="assignee" data-tag-value="me">Valentin</button>
-              <button type="button" class="tag-pill" id="tagPillWife" data-tag-kind="assignee" data-tag-value="wife">Lisa</button>
-            </div>
-            <span class="tag-sep"></span>
-            <div class="tag-group" role="group" aria-label="Catégorie">
-              <button type="button" class="tag-pill" data-tag-kind="category" data-tag-value="maison">#maison</button>
-              <button type="button" class="tag-pill" data-tag-kind="category" data-tag-value="courses">#courses</button>
-              <button type="button" class="tag-pill" data-tag-kind="category" data-tag-value="date">#date</button>
-              <button type="button" class="tag-pill" data-tag-kind="category" data-tag-value="admin">#admin</button>
-            </div>
-            <span class="tag-sep"></span>
-            <div class="tag-group" role="group" aria-label="Quand">
-              <button type="button" class="tag-pill" data-tag-kind="due" data-tag-value="tomorrow">Demain</button>
-              <button type="button" class="tag-pill" data-tag-kind="due" data-tag-value="weekend">Week-end</button>
-              <button type="button" class="tag-pill" data-tag-kind="recurring" data-tag-value="daily">↻ Quotidien</button>
-              <button type="button" class="tag-pill" data-tag-kind="priority" data-tag-value="1">! Urgent</button>
-            </div>
+          <div class="preset-tasks-row" id="presetTasksRow" aria-label="Tâches récurrentes rapides">
+            <button type="button" class="preset-task-pill" data-title="Deep clean salle de bain" data-rule="weekly">🛁 Deep clean salle de bain</button>
+            <button type="button" class="preset-task-pill" data-title="Deep clean cuisine" data-rule="weekly">🍳 Deep clean cuisine</button>
+            <button type="button" class="preset-task-pill" data-title="Aspirateur &amp; sols" data-rule="weekly">🧹 Aspirateur &amp; sols</button>
+            <button type="button" class="preset-task-pill" data-title="Lessive &amp; draps" data-rule="weekly">🧺 Lessive &amp; draps</button>
+            <button type="button" class="preset-task-pill" data-title="Sortir les poubelles" data-rule="daily">🗑️ Poubelles</button>
           </div>
         </form>
       </div>

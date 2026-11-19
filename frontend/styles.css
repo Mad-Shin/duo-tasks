@@ -332,52 +332,38 @@ html, body {
   color: var(--danger);
 }
 
-/* 1-Tap Tagging & Event Presets */
-.tag-picker {
+.preset-tasks-row {
   border-top: 1px solid var(--border);
-  padding: 10px 0 3px;
+  padding: 9px 0 3px;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 6px;
 }
 
-.tag-group {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.tag-sep {
-  width: 1px;
-  height: 16px;
-  background: var(--border);
-}
-
-.tag-pill, .preset-pill, .date-chip {
+.preset-task-pill, .preset-pill, .date-chip {
   border: 1px solid var(--border);
   background: linear-gradient(180deg, var(--surface-muted) 0%, var(--surface) 100%);
-  color: var(--text-secondary);
+  color: var(--text);
   font-family: inherit;
-  font-size: 0.76rem;
+  font-size: 0.77rem;
   font-weight: 600;
-  padding: 5px 11px;
+  padding: 6px 12px;
   border-radius: 999px;
   cursor: pointer;
   box-shadow: var(--shadow-btn);
-  transition: transform 0.1s ease, color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+  transition: transform 0.1s ease, filter 0.14s ease, box-shadow 0.14s ease;
 }
 
-.tag-pill:hover, .preset-pill:hover, .date-chip:hover {
-  color: var(--text);
+.preset-task-pill:hover, .preset-pill:hover, .date-chip:hover {
+  filter: brightness(1.12);
 }
 
-.tag-pill:active, .preset-pill:active, .date-chip:active {
+.preset-task-pill:active, .preset-pill:active, .date-chip:active {
   transform: translateY(1px);
   box-shadow: var(--shadow-pressed);
 }
 
-.tag-pill.active, .date-chip.active {
+.date-chip.active {
   background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
   color: #ffffff;
   border-color: transparent;
@@ -493,26 +479,25 @@ html, body {
 
 .filter-chip {
   flex: 0 0 auto;
-  border: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface) 100%);
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text-secondary);
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 0.79rem;
   font-weight: 600;
   padding: 6px 12px;
   border-radius: 999px;
   cursor: pointer;
-  box-shadow: var(--shadow-btn);
   transition: transform 0.1s ease, color 0.14s ease, background 0.14s ease;
 }
 
 .filter-chip:hover {
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text);
 }
 
 .filter-chip:active {
   transform: translateY(1px);
-  box-shadow: var(--shadow-pressed);
 }
 
 .filter-chip.active {

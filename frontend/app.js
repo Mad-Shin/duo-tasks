@@ -23,13 +23,6 @@ const state = {
     me_name: "Valentin",
     wife_name: "Lisa"
   },
-  composerTags: {
-    assignee: "both",
-    category: null,
-    due_label: null,
-    recurring: false,
-    priority: null
-  },
   tasks: [],
   allTasks: [],
   staples: [],
@@ -53,8 +46,6 @@ const els = {
   closeModalBtn: document.getElementById("closeModalBtn"),
   idBtnMe: document.getElementById("idBtnMe"),
   idBtnWife: document.getElementById("idBtnWife"),
-  tagPillMe: document.getElementById("tagPillMe"),
-  tagPillWife: document.getElementById("tagPillWife"),
   filterChipMe: document.getElementById("filterChipMe"),
   filterChipWife: document.getElementById("filterChipWife"),
 
@@ -214,8 +205,6 @@ function renderProfileLabels() {
   const wife = partnerName("wife");
   els.idBtnMe.textContent = me;
   els.idBtnWife.textContent = wife;
-  els.tagPillMe.textContent = me;
-  els.tagPillWife.textContent = wife;
   els.filterChipMe.textContent = me;
   els.filterChipWife.textContent = wife;
   if (els.editAssignee.options.length >= 3) {
@@ -223,20 +212,6 @@ function renderProfileLabels() {
     els.editAssignee.options[1].textContent = me;
     els.editAssignee.options[2].textContent = wife;
   }
-}
-
-function syncTagPillsUI() {
-  document.querySelectorAll(".tag-pill").forEach((pill) => {
-    const kind = pill.dataset.tagKind;
-    const val = pill.dataset.tagValue;
-    let active = false;
-    if (kind === "assignee") active = state.composerTags.assignee === val;
-    else if (kind === "category") active = state.composerTags.category === val;
-    else if (kind === "due") active = state.composerTags.due_label === val;
-    else if (kind === "recurring") active = state.composerTags.recurring;
-    else if (kind === "priority") active = state.composerTags.priority === Number(val);
-    pill.classList.toggle("active", active);
-  });
 }
 
 function setComposerMode(mode) {
@@ -900,25 +875,33 @@ els.profileForm.addEventListener("submit", async (evt) => {
   }
 });
 
-// 1-Tap Tag Pills in Task Composer
-document.querySelectorAll(".tag-pill").forEach((pill) => {
-  pill.addEventListener("click", () => {
-    const kind = pill.dataset.tagKind;
-    const val = pill.dataset.tagValue;
-    if (kind === "assignee") {
-      state.composerTags.assignee = val;
-    } else if (kind === "category") {
-      state.composerTags.category = state.composerTags.category === val ? null : val;
-    } else if (kind === "due") {
-      state.composerTags.due_label = state.composerTags.due_label === val ? null : val;
-    } else if (kind === "recurring") {
-      state.composerTags.recurring = !state.composerTags.recurring;
-    } else if (kind === "priority") {
-      const p = Number(val);
-      state.composerTags.priority = state.composerTags.priority === p ? null : p;
+// 1-Tap Pre-Written Recurring Task Buttons
+document.querySelectorAll(".preset-task-pill").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const title = btn.dataset.title || "";
+    const rule = btn.dataset.rule || "weekly";
+    if (!title) return;
+    try {
+      const created = await apiJson("/api/tasks", {
+        method: "POST",
+        body: JSON.stringify({
+          raw_input: title,
+          assignee: "both",
+          category: "maison",
+          priority: 2,
+          due_label: "today",
+          recurring: true,
+          recurrence_rule: rule
+        })
+      });
+      showToast(`Ajoutée : ${title}`, "Annuler", async () => {
+        await apiJson(`/api/tasks/${created.id}`, { method: "DELETE" });
+        await refreshAll();
+      });
+      await refreshAll();
+    } catch (err) {
+      console.error(err);
     }
-    syncTagPillsUI();
-    els.input.focus();
   });
 });
 
@@ -927,38 +910,11 @@ els.form.addEventListener("submit", async (evt) => {
   const raw = els.input.value.trim();
   if (!raw) return;
 
-  const body = { raw_input: raw };
-  if (state.composerTags.assignee !== "both" && !/@\S+/.test(raw)) {
-    body.assignee = state.composerTags.assignee;
-  }
-  if (state.composerTags.category && !/#\S+/.test(raw)) {
-    body.category = state.composerTags.category;
-  }
-  if (state.composerTags.due_label) {
-    body.due_label = state.composerTags.due_label;
-  }
-  if (state.composerTags.recurring) {
-    body.recurring = true;
-    body.recurrence_rule = "daily";
-  }
-  if (state.composerTags.priority !== null && !/!\d/.test(raw)) {
-    body.priority = state.composerTags.priority;
-  }
-
   els.input.value = "";
-  state.composerTags = {
-    assignee: "both",
-    category: null,
-    due_label: null,
-    recurring: false,
-    priority: null
-  };
-  syncTagPillsUI();
-
   try {
     await apiJson("/api/tasks", {
       method: "POST",
-      body: JSON.stringify(body)
+      body: JSON.stringify({ raw_input: raw })
     });
     await refreshAll();
   } catch (err) {
@@ -1108,7 +1064,6 @@ if ("serviceWorker" in navigator) {
 
 applyTheme(state.theme);
 applyIdentity(state.identity);
-syncTagPillsUI();
 refreshAll();
 connectWebSocket();
 refreshHealth();
