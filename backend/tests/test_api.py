@@ -311,6 +311,10 @@ class TestTasksAPIAndPWA(unittest.TestCase):
         self.assertEqual(r_prof.json()["kudos_count"], 0)
         self.assertIsInstance(r_prof.json()["preset_tasks"], list)
         self.assertGreaterEqual(len(r_prof.json()["preset_tasks"]), 2)
+        self.assertEqual(
+            r_prof.json()["preset_courses"],
+            ["Pâtes", "Riz", "Liquide vaisselle", "Linge"],
+        )
 
         r_upd = self.client.patch(
             "/api/couple/profile",
@@ -320,6 +324,7 @@ class TestTasksAPIAndPWA(unittest.TestCase):
                 "love_note": "Apéro à 19h30 ?",
                 "love_note_author": "me",
                 "preset_tasks": ["Deep clean frigo", "Laver les vitres"],
+                "preset_courses": ["Pâtes", "Riz", "Café"],
             },
         )
         self.assertEqual(r_upd.status_code, 200)
@@ -327,10 +332,12 @@ class TestTasksAPIAndPWA(unittest.TestCase):
         self.assertEqual(r_upd.json()["wife_emoji"], "🌻")
         self.assertEqual(r_upd.json()["love_note"], "Apéro à 19h30 ?")
         self.assertEqual(r_upd.json()["preset_tasks"], ["Deep clean frigo", "Laver les vitres"])
+        self.assertEqual(r_upd.json()["preset_courses"], ["Pâtes", "Riz", "Café"])
 
         r_prof2 = self.client.get("/api/couple/profile")
         self.assertEqual(r_prof2.status_code, 200)
         self.assertEqual(r_prof2.json()["preset_tasks"], ["Deep clean frigo", "Laver les vitres"])
+        self.assertEqual(r_prof2.json()["preset_courses"], ["Pâtes", "Riz", "Café"])
 
         r_kudos = self.client.post(
             "/api/couple/kudos",

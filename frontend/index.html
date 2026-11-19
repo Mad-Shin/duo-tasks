@@ -140,7 +140,7 @@
         </form>
       </div>
 
-      <!-- 3. COURSES COMPOSER (Clean, zero samples) -->
+      <!-- 3. COURSES COMPOSER (Empty list + 4 quick pre-selections) -->
       <div class="composer-card hidden" id="courseComposerCard">
         <form id="courseAddForm" autocomplete="off">
           <div class="composer-row">
@@ -154,6 +154,8 @@
             />
             <button type="submit" class="btn-add">Ajouter</button>
           </div>
+
+          <div class="preset-tasks-row course-presets-row" id="presetCoursesRow" aria-label="Pré-suggestions courses"></div>
         </form>
       </div>
     </section>
@@ -429,6 +431,15 @@
           <div class="composer-row compact">
             <input type="text" id="newPresetInput" placeholder="Ajouter une pré-suggestion…" maxlength="80" />
             <button type="button" class="btn-soft" id="addPresetBtn">+</button>
+          </div>
+        </div>
+
+        <div class="presets-editor-box">
+          <span class="field-label">Pré-suggestions (Courses)</span>
+          <ul class="settings-presets-list" id="settingsCoursePresetsList"></ul>
+          <div class="composer-row compact">
+            <input type="text" id="newCoursePresetInput" placeholder="Ajouter un produit rapide…" maxlength="80" />
+            <button type="button" class="btn-soft" id="addCoursePresetBtn">+</button>
           </div>
         </div>
 

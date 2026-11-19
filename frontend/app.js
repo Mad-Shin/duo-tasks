@@ -13,6 +13,7 @@ const CATEGORY_LABELS = {
 };
 
 const DEFAULT_PRESETS = ["Deep clean salle de bain hebdo", "Deep clean cuisine hebdo"];
+const DEFAULT_COURSE_PRESETS = ["Pâtes", "Riz", "Liquide vaisselle", "Linge"];
 const SVG_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 
 const state = {
@@ -23,9 +24,11 @@ const state = {
   profile: {
     me_name: "Valentin",
     wife_name: "Lisa",
-    preset_tasks: [...DEFAULT_PRESETS]
+    preset_tasks: [...DEFAULT_PRESETS],
+    preset_courses: [...DEFAULT_COURSE_PRESETS]
   },
   draftPresets: [...DEFAULT_PRESETS],
+  draftCoursePresets: [...DEFAULT_COURSE_PRESETS],
   tasks: [],
   searchQuery: "",
   showCompleted: false,
@@ -58,6 +61,9 @@ const els = {
   settingsPresetsList: document.getElementById("settingsPresetsList"),
   newPresetInput: document.getElementById("newPresetInput"),
   addPresetBtn: document.getElementById("addPresetBtn"),
+  settingsCoursePresetsList: document.getElementById("settingsCoursePresetsList"),
+  newCoursePresetInput: document.getElementById("newCoursePresetInput"),
+  addCoursePresetBtn: document.getElementById("addCoursePresetBtn"),
 
   // Mode Switch & Composers
   modeTaskBtn: document.getElementById("modeTaskBtn"),
@@ -81,6 +87,7 @@ const els = {
   eventLocationInput: document.getElementById("eventLocationInput"),
   courseAddForm: document.getElementById("courseAddForm"),
   courseAddInput: document.getElementById("courseAddInput"),
+  presetCoursesRow: document.getElementById("presetCoursesRow"),
 
   // Carousel & Navigation
   tasksCarousel: document.getElementById("tasksCarousel"),
@@ -374,6 +381,29 @@ function renderPresetButtons() {
     });
     els.presetTasksRow.appendChild(btn);
   });
+
+  if (els.presetCoursesRow) {
+    const coursePresets = Array.isArray(state.profile.preset_courses)
+      ? state.profile.preset_courses
+      : DEFAULT_COURSE_PRESETS;
+    els.presetCoursesRow.innerHTML = "";
+    els.presetCoursesRow.classList.toggle("hidden", coursePresets.length === 0);
+
+    coursePresets.forEach((text) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "preset-task-pill";
+      btn.textContent = text;
+      btn.title = text;
+      btn.addEventListener("click", () => {
+        els.courseAddInput.value = text;
+        els.courseAddInput.focus();
+        const len = els.courseAddInput.value.length;
+        els.courseAddInput.setSelectionRange(len, len);
+      });
+      els.presetCoursesRow.appendChild(btn);
+    });
+  }
 }
 
 function showToast(message, actionLabel = null, actionCallback = null) {
@@ -1052,6 +1082,27 @@ function renderSettingsPresets() {
     li.appendChild(del);
     els.settingsPresetsList.appendChild(li);
   });
+
+  if (els.settingsCoursePresetsList) {
+    els.settingsCoursePresetsList.innerHTML = "";
+    state.draftCoursePresets.forEach((text, idx) => {
+      const li = document.createElement("li");
+      li.className = "settings-preset-item";
+      const span = document.createElement("span");
+      span.textContent = text;
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "btn-close";
+      del.textContent = "✕";
+      del.addEventListener("click", () => {
+        state.draftCoursePresets.splice(idx, 1);
+        renderSettingsPresets();
+      });
+      li.appendChild(span);
+      li.appendChild(del);
+      els.settingsCoursePresetsList.appendChild(li);
+    });
+  }
 }
 
 async function refreshHealth() {
@@ -1286,6 +1337,9 @@ els.editProfileBtn.addEventListener("click", () => {
   state.draftPresets = Array.isArray(state.profile.preset_tasks)
     ? [...state.profile.preset_tasks]
     : [...DEFAULT_PRESETS];
+  state.draftCoursePresets = Array.isArray(state.profile.preset_courses)
+    ? [...state.profile.preset_courses]
+    : [...DEFAULT_COURSE_PRESETS];
   renderSettingsPresets();
   els.profileModal.classList.remove("hidden");
 });
@@ -1305,6 +1359,23 @@ els.newPresetInput.addEventListener("keydown", (evt) => {
   }
 });
 
+if (els.addCoursePresetBtn && els.newCoursePresetInput) {
+  els.addCoursePresetBtn.addEventListener("click", () => {
+    const txt = els.newCoursePresetInput.value.trim();
+    if (!txt) return;
+    state.draftCoursePresets.push(txt);
+    els.newCoursePresetInput.value = "";
+    renderSettingsPresets();
+  });
+
+  els.newCoursePresetInput.addEventListener("keydown", (evt) => {
+    if (evt.key === "Enter") {
+      evt.preventDefault();
+      els.addCoursePresetBtn.click();
+    }
+  });
+}
+
 els.closeProfileModalBtn.addEventListener("click", () => els.profileModal.classList.add("hidden"));
 els.profileModal.addEventListener("click", (evt) => {
   if (evt.target === els.profileModal) els.profileModal.classList.add("hidden");
@@ -1318,7 +1389,8 @@ els.profileForm.addEventListener("submit", async (evt) => {
       body: JSON.stringify({
         me_name: els.profMeName.value.trim(),
         wife_name: els.profWifeName.value.trim(),
-        preset_tasks: state.draftPresets
+        preset_tasks: state.draftPresets,
+        preset_courses: state.draftCoursePresets
       })
     });
     els.profileModal.classList.add("hidden");

@@ -899,20 +899,26 @@ async def quick_add_grocery_staple(staple_id: int) -> dict[str, Any]:
 # --- Couple Profile, Love Note & Kudos ---
 
 DEFAULT_PRESET_TASKS = ["Deep clean salle de bain hebdo", "Deep clean cuisine hebdo"]
+DEFAULT_PRESET_COURSES = ["Pâtes", "Riz", "Liquide vaisselle", "Linge"]
+
+
+def _decode_str_list(raw_json: Any, fallback: list[str]) -> list[str]:
+    if isinstance(raw_json, str) and raw_json.strip():
+        try:
+            loaded = json.loads(raw_json)
+            if isinstance(loaded, list):
+                return [str(item).strip() for item in loaded if str(item).strip()]
+        except Exception:
+            pass
+    return list(fallback)
 
 
 def _row_to_profile_dict(row: Any) -> dict[str, Any]:
     data = dict(row)
     raw_presets = data.pop("preset_tasks_json", None)
-    presets: list[str] = list(DEFAULT_PRESET_TASKS)
-    if isinstance(raw_presets, str) and raw_presets.strip():
-        try:
-            loaded = json.loads(raw_presets)
-            if isinstance(loaded, list):
-                presets = [str(item).strip() for item in loaded if str(item).strip()]
-        except Exception:
-            pass
-    data["preset_tasks"] = presets
+    raw_courses = data.pop("preset_courses_json", None)
+    data["preset_tasks"] = _decode_str_list(raw_presets, DEFAULT_PRESET_TASKS)
+    data["preset_courses"] = _decode_str_list(raw_courses, DEFAULT_PRESET_COURSES)
     return data
 
 
@@ -922,7 +928,7 @@ def get_couple_profile() -> dict[str, Any]:
     with get_connection() as (conn, _):
         cur = conn.cursor()
         cur.execute(
-            "SELECT me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, preset_tasks_json, updated_at "
+            "SELECT me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, preset_tasks_json, preset_courses_json, updated_at "
             "FROM couple_profile WHERE id = 1"
         )
         row = cur.fetchone()
@@ -937,6 +943,7 @@ def get_couple_profile() -> dict[str, Any]:
             "love_note_author": "both",
             "kudos_count": 0,
             "preset_tasks": list(DEFAULT_PRESET_TASKS),
+            "preset_courses": list(DEFAULT_PRESET_COURSES),
             "updated_at": "",
         }
     return _row_to_profile_dict(row)
@@ -965,6 +972,11 @@ async def update_couple_profile(payload: CoupleProfileUpdate) -> dict[str, Any]:
             assignments.append(f"preset_tasks_json = {ph}")
             params.append(json.dumps(cleaned_presets, ensure_ascii=False))
 
+        if "preset_courses" in updates and updates["preset_courses"] is not None:
+            cleaned_courses = [str(p).strip() for p in updates["preset_courses"] if str(p).strip()]
+            assignments.append(f"preset_courses_json = {ph}")
+            params.append(json.dumps(cleaned_courses, ensure_ascii=False))
+
         if assignments:
             assignments.append(f"updated_at = {ph}")
             params.append(now)
@@ -977,7 +989,7 @@ async def update_couple_profile(payload: CoupleProfileUpdate) -> dict[str, Any]:
 
         cur = conn.cursor()
         cur.execute(
-            "SELECT me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, preset_tasks_json, updated_at "
+            "SELECT me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, preset_tasks_json, preset_courses_json, updated_at "
             "FROM couple_profile WHERE id = 1"
         )
         profile = _row_to_profile_dict(cur.fetchone())

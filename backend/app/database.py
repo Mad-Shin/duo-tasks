@@ -192,6 +192,7 @@ def init_db() -> None:
             love_note_author TEXT NOT NULL DEFAULT 'both',
             kudos_count INTEGER NOT NULL DEFAULT 0,
             preset_tasks_json TEXT NOT NULL DEFAULT '["Deep clean salle de bain hebdo", "Deep clean cuisine hebdo"]',
+            preset_courses_json TEXT NOT NULL DEFAULT '["Pâtes", "Riz", "Liquide vaisselle", "Linge"]',
             updated_at TEXT NOT NULL DEFAULT ''
         )
         """
@@ -255,6 +256,13 @@ def init_db() -> None:
             "couple_profile",
             "preset_tasks_json",
             "TEXT NOT NULL DEFAULT '[\"Deep clean salle de bain hebdo\", \"Deep clean cuisine hebdo\"]'",
+        )
+        _safe_add_column(
+            cur,
+            mode,
+            "couple_profile",
+            "preset_courses_json",
+            "TEXT NOT NULL DEFAULT '[\"Pâtes\", \"Riz\", \"Liquide vaisselle\", \"Linge\"]'",
         )
         _safe_add_column(cur, mode, "budget_account", "joint_filter_keyword", "TEXT NOT NULL DEFAULT ''")
         _safe_add_column(cur, mode, "budget_account", "webhook_logs_json", "TEXT NOT NULL DEFAULT '[]'")

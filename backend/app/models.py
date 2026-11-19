@@ -167,6 +167,9 @@ class CoupleProfileOut(BaseModel):
     preset_tasks: list[str] = Field(
         default_factory=lambda: ["Deep clean salle de bain hebdo", "Deep clean cuisine hebdo"]
     )
+    preset_courses: list[str] = Field(
+        default_factory=lambda: ["Pâtes", "Riz", "Liquide vaisselle", "Linge"]
+    )
     updated_at: str = ""
 
 
@@ -178,6 +181,7 @@ class CoupleProfileUpdate(BaseModel):
     love_note: Optional[str] = Field(default=None, max_length=200)
     love_note_author: Optional[str] = Field(default=None, max_length=20)
     preset_tasks: Optional[list[str]] = None
+    preset_courses: Optional[list[str]] = None
 
 
 class KudosRequest(BaseModel):
