@@ -4,20 +4,27 @@ DuoTasks FastAPI Server — Full Couple Productivity, Supermarket & Routines Bac
 
 from __future__ import annotations
 
+import hmac
 import json
 import mimetypes
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from .database import get_connection, get_database_url, get_db_mode, init_db, placeholder, row_to_task_dict
 from .models import (
+    BudgetOverviewOut,
+    BudgetRefillRequest,
+    BudgetSettingsUpdate,
+    BudgetTransactionOut,
     CoupleProfileOut,
     CoupleProfileUpdate,
     CoupleStatsOut,
@@ -26,6 +33,7 @@ from .models import (
     KudosRequest,
     ParsePreviewOut,
     ParsePreviewRequest,
+    RevolutWebhookPayload,
     RoutinePackOut,
     SubtaskCreate,
     SubtaskUpdate,
@@ -34,6 +42,7 @@ from .models import (
     TaskUpdate,
 )
 from .parser import compute_due_date, infer_aisle, normalize_assignee, normalize_category, parse_quick_add
+from .revolut_parser import compute_dedupe_key, parse_revolut_notification
 
 # Prevent Windows registry MIME-type quirks from breaking JS modules or Service Workers
 mimetypes.add_type("application/javascript", ".js")
@@ -1073,6 +1082,458 @@ def get_couple_stats() -> dict[str, Any]:
             "couple_score": couple_score,
         },
     }
+
+
+# --- Joint Account Budget (Revolut via MacroDroid Android) ---
+
+
+def _verify_duo_pin(x_duo_pin: str | None) -> None:
+    expected = os.environ.get("DUO_PIN", "").strip()
+    if not expected:
+        return
+    provided = (x_duo_pin or "").strip()
+    if not provided or not hmac.compare_digest(provided, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="PIN Duo requis ou invalide",
+        )
+
+
+def _verify_revolut_webhook_secret(x_webhook_secret: str | None) -> None:
+    expected = os.environ.get("REVOLUT_WEBHOOK_SECRET", "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="REVOLUT_WEBHOOK_SECRET non configuré sur le serveur",
+        )
+    provided = (x_webhook_secret or "").strip()
+    if not provided or not hmac.compare_digest(provided, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Header X-Webhook-Secret invalide",
+        )
+
+
+def _decode_webhook_logs(raw_json: Any) -> list[dict[str, Any]]:
+    if isinstance(raw_json, list):
+        items = raw_json
+    elif isinstance(raw_json, str) and raw_json.strip():
+        try:
+            loaded = json.loads(raw_json)
+            items = loaded if isinstance(loaded, list) else []
+        except Exception:
+            items = []
+    else:
+        items = []
+
+    out: list[dict[str, Any]] = []
+    for item in items[:5]:
+        if not isinstance(item, dict):
+            continue
+        out.append(
+            {
+                "received_at": str(item.get("received_at") or ""),
+                "title": str(item.get("title") or "")[:160],
+                "text": str(item.get("text") or "")[:240],
+                "status": str(item.get("status") or "ignored"),
+                "reason": str(item.get("reason") or ""),
+                "parsed_kind": str(item.get("parsed_kind") or ""),
+                "parsed_amount_cents": int(item.get("parsed_amount_cents") or 0),
+                "parsed_merchant": str(item.get("parsed_merchant") or ""),
+            }
+        )
+    return out
+
+
+def _append_webhook_log(
+    conn: Any,
+    mode: str,
+    existing_logs_json: Any,
+    entry: dict[str, Any],
+) -> None:
+    logs = _decode_webhook_logs(existing_logs_json)
+    logs.insert(0, entry)
+    trimmed = logs[:5]
+    ph = placeholder(mode)
+    cur = conn.cursor()
+    cur.execute(
+        f"UPDATE budget_account SET webhook_logs_json = {ph} WHERE id = 1",
+        (json.dumps(trimmed, ensure_ascii=False),),
+    )
+    cur.close()
+
+
+def _row_to_budget_tx(row: Any) -> dict[str, Any]:
+    data = dict(row)
+    return {
+        "id": int(data["id"]),
+        "kind": str(data.get("kind") or "expense"),
+        "amount_cents": int(data.get("amount_cents") or 0),
+        "merchant": str(data.get("merchant") or ""),
+        "note": str(data.get("note") or ""),
+        "source": str(data.get("source") or "manual"),
+        "raw_text": str(data.get("raw_text") or ""),
+        "created_at": str(data.get("created_at") or ""),
+    }
+
+
+def _insert_budget_tx(
+    conn: Any,
+    mode: str,
+    *,
+    kind: str,
+    amount_cents: int,
+    merchant: str,
+    note: str,
+    source: str,
+    raw_text: str,
+    dedupe_key: str | None,
+    created_at: str,
+) -> int:
+    ph = placeholder(mode)
+    cur = conn.cursor()
+    cols = "kind, amount_cents, merchant, note, source, raw_text, dedupe_key, created_at"
+    vals = (kind, amount_cents, merchant[:120], note[:200], source, raw_text[:320], dedupe_key, created_at)
+    phs = ", ".join([ph] * 8)
+    if mode == "postgres":
+        cur.execute(f"INSERT INTO budget_transactions ({cols}) VALUES ({phs}) RETURNING id", vals)
+        inserted = cur.fetchone()
+        new_id = int(inserted["id"])
+    else:
+        cur.execute(f"INSERT INTO budget_transactions ({cols}) VALUES ({phs})", vals)
+        new_id = int(cur.lastrowid)
+    cur.close()
+    return new_id
+
+
+def _build_budget_overview(conn: Any) -> dict[str, Any]:
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT balance_cents, currency, joint_filter_keyword, webhook_logs_json, updated_at "
+        "FROM budget_account WHERE id = 1"
+    )
+    acc = cur.fetchone()
+    if acc is None:
+        acc_dict = {
+            "balance_cents": 0,
+            "currency": "EUR",
+            "joint_filter_keyword": "",
+            "webhook_logs_json": "[]",
+            "updated_at": "",
+        }
+    else:
+        acc_dict = dict(acc)
+
+    cur.execute(
+        "SELECT id, kind, amount_cents, merchant, note, source, raw_text, created_at "
+        "FROM budget_transactions ORDER BY id DESC LIMIT 15"
+    )
+    tx_rows = [_row_to_budget_tx(r) for r in cur.fetchall()]
+
+    cur.execute(
+        "SELECT id, kind, amount_cents, merchant, note, source, raw_text, created_at "
+        "FROM budget_transactions WHERE kind = 'expense' ORDER BY id DESC LIMIT 1"
+    )
+    last_exp_row = cur.fetchone()
+    cur.close()
+
+    return {
+        "balance_cents": int(acc_dict.get("balance_cents") or 0),
+        "currency": str(acc_dict.get("currency") or "EUR"),
+        "joint_filter_keyword": str(acc_dict.get("joint_filter_keyword") or ""),
+        "webhook_configured": bool(os.environ.get("REVOLUT_WEBHOOK_SECRET", "").strip()),
+        "pin_required": bool(os.environ.get("DUO_PIN", "").strip()),
+        "updated_at": str(acc_dict.get("updated_at") or ""),
+        "last_expense": _row_to_budget_tx(last_exp_row) if last_exp_row else None,
+        "last_transaction": tx_rows[0] if tx_rows else None,
+        "transactions": tx_rows,
+        "webhook_logs": _decode_webhook_logs(acc_dict.get("webhook_logs_json")),
+    }
+
+
+def _resolve_cents_from_payload(payload: BudgetRefillRequest) -> int:
+    if payload.amount_cents is not None:
+        return int(payload.amount_cents)
+    if payload.amount is not None:
+        try:
+            dec = Decimal(str(payload.amount))
+            return int((dec * Decimal(100)).quantize(Decimal("1")))
+        except (InvalidOperation, ValueError):
+            raise HTTPException(status_code=422, detail="Montant invalide")
+    raise HTTPException(status_code=422, detail="amount_cents ou amount requis")
+
+
+@app.get("/api/budget", response_model=BudgetOverviewOut)
+def get_budget_overview(x_duo_pin: Optional[str] = Header(default=None, alias="X-Duo-Pin")) -> dict[str, Any]:
+    ensure_db_ready()
+    _verify_duo_pin(x_duo_pin)
+    with get_connection() as (conn, _):
+        return _build_budget_overview(conn)
+
+
+@app.post("/api/budget/refill", response_model=BudgetOverviewOut)
+async def budget_refill_or_adjust(
+    payload: BudgetRefillRequest,
+    x_duo_pin: Optional[str] = Header(default=None, alias="X-Duo-Pin"),
+) -> dict[str, Any]:
+    ensure_db_ready()
+    _verify_duo_pin(x_duo_pin)
+
+    cents = _resolve_cents_from_payload(payload)
+    mode_op = payload.mode
+    if mode_op in ("refill", "expense") and cents <= 0:
+        raise HTTPException(status_code=422, detail="Le montant doit être strictement positif")
+
+    now = _utc_now()
+    note = payload.note.strip()
+    merchant = payload.merchant.strip()
+
+    with get_connection() as (conn, mode):
+        ph = placeholder(mode)
+        cur = conn.cursor()
+        cur.execute("SELECT balance_cents FROM budget_account WHERE id = 1")
+        row = cur.fetchone()
+        current_balance = int(row["balance_cents"]) if row else 0
+        cur.close()
+
+        if mode_op == "refill":
+            new_balance = current_balance + cents
+            tx_amount = cents
+            tx_merchant = merchant or "Refill compte joint"
+        elif mode_op == "expense":
+            new_balance = current_balance - cents
+            tx_amount = cents
+            tx_merchant = merchant or "Dépense manuelle"
+        else:
+            # recalibrate: cents represents the exact true Revolut balance
+            new_balance = cents
+            tx_amount = new_balance - current_balance
+            tx_merchant = merchant or "Recalage solde"
+            if not note:
+                euros = f"{new_balance / 100:.2f}".replace(".", ",")
+                note = f"Solde réel {euros} €"
+
+        _insert_budget_tx(
+            conn,
+            mode,
+            kind=mode_op,
+            amount_cents=tx_amount,
+            merchant=tx_merchant,
+            note=note,
+            source="manual",
+            raw_text="",
+            dedupe_key=None,
+            created_at=now,
+        )
+
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE budget_account SET balance_cents = {ph}, updated_at = {ph} WHERE id = 1",
+            (new_balance, now),
+        )
+        cur.close()
+        overview = _build_budget_overview(conn)
+
+    await manager.broadcast({"event": "sync", "action": f"budget_{mode_op}"})
+    return overview
+
+
+@app.delete("/api/budget/transactions/{tx_id}", response_model=BudgetOverviewOut)
+async def delete_budget_transaction(
+    tx_id: int,
+    x_duo_pin: Optional[str] = Header(default=None, alias="X-Duo-Pin"),
+) -> dict[str, Any]:
+    ensure_db_ready()
+    _verify_duo_pin(x_duo_pin)
+    now = _utc_now()
+
+    with get_connection() as (conn, mode):
+        ph = placeholder(mode)
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT id, kind, amount_cents FROM budget_transactions WHERE id = {ph}",
+            (tx_id,),
+        )
+        tx = cur.fetchone()
+        if tx is None:
+            cur.close()
+            raise HTTPException(status_code=404, detail="Transaction introuvable")
+
+        kind = str(tx["kind"])
+        amt = int(tx["amount_cents"])
+
+        cur.execute("SELECT balance_cents FROM budget_account WHERE id = 1")
+        acc = cur.fetchone()
+        current_balance = int(acc["balance_cents"]) if acc else 0
+
+        if kind == "expense":
+            new_balance = current_balance + amt
+        elif kind == "refill":
+            new_balance = current_balance - amt
+        else:
+            new_balance = current_balance
+
+        cur.execute(f"DELETE FROM budget_transactions WHERE id = {ph}", (tx_id,))
+        cur.execute(
+            f"UPDATE budget_account SET balance_cents = {ph}, updated_at = {ph} WHERE id = 1",
+            (new_balance, now),
+        )
+        cur.close()
+        overview = _build_budget_overview(conn)
+
+    await manager.broadcast({"event": "sync", "action": "budget_tx_deleted", "tx_id": tx_id})
+    return overview
+
+
+@app.patch("/api/budget/settings", response_model=BudgetOverviewOut)
+async def update_budget_settings(
+    payload: BudgetSettingsUpdate,
+    x_duo_pin: Optional[str] = Header(default=None, alias="X-Duo-Pin"),
+) -> dict[str, Any]:
+    ensure_db_ready()
+    _verify_duo_pin(x_duo_pin)
+    now = _utc_now()
+    kw = payload.joint_filter_keyword.strip()
+
+    with get_connection() as (conn, mode):
+        ph = placeholder(mode)
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE budget_account SET joint_filter_keyword = {ph}, updated_at = {ph} WHERE id = 1",
+            (kw, now),
+        )
+        cur.close()
+        overview = _build_budget_overview(conn)
+
+    await manager.broadcast({"event": "sync", "action": "budget_settings_updated"})
+    return overview
+
+
+@app.post("/api/budget/webhook/revolut")
+async def revolut_macrodroid_webhook(
+    payload: RevolutWebhookPayload,
+    x_webhook_secret: Optional[str] = Header(default=None, alias="X-Webhook-Secret"),
+) -> dict[str, Any]:
+    ensure_db_ready()
+    _verify_revolut_webhook_secret(x_webhook_secret)
+
+    now = _utc_now()
+    dedupe_key = compute_dedupe_key(
+        payload.title,
+        payload.text,
+        timestamp=payload.timestamp,
+        explicit_key=payload.dedupe_key,
+    )
+
+    with get_connection() as (conn, mode):
+        ph = placeholder(mode)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT balance_cents, joint_filter_keyword, webhook_logs_json FROM budget_account WHERE id = 1"
+        )
+        acc = cur.fetchone()
+        current_balance = int(acc["balance_cents"]) if acc else 0
+        keyword = str(acc["joint_filter_keyword"] or "") if acc else ""
+        logs_json = acc["webhook_logs_json"] if acc else "[]"
+
+        # Check idempotence first (protects against MacroDroid cold-start retries)
+        cur.execute(
+            f"SELECT id FROM budget_transactions WHERE dedupe_key = {ph}",
+            (dedupe_key,),
+        )
+        existing = cur.fetchone()
+        cur.close()
+
+        if existing is not None:
+            return {
+                "status": "duplicate",
+                "dedupe_key": dedupe_key,
+                "transaction_id": int(existing["id"]),
+                "balance_cents": current_balance,
+            }
+
+        parsed = parse_revolut_notification(payload.title, payload.text, joint_filter_keyword=keyword)
+        if parsed.get("ignored"):
+            reason = str(parsed.get("reason") or "ignored")
+            _append_webhook_log(
+                conn,
+                mode,
+                logs_json,
+                {
+                    "received_at": now,
+                    "title": payload.title.strip()[:160],
+                    "text": payload.text.strip()[:240],
+                    "status": "ignored",
+                    "reason": reason,
+                    "parsed_kind": "",
+                    "parsed_amount_cents": 0,
+                    "parsed_merchant": "",
+                },
+            )
+            broadcast_action = "budget_webhook_ignored"
+            result: dict[str, Any] = {"status": "ignored", "reason": reason, "balance_cents": current_balance}
+        else:
+            kind = str(parsed["kind"])
+            amount_cents = int(parsed["amount_cents"])
+            merchant = str(parsed["merchant"])
+            raw_text = str(parsed["raw_text"])
+            new_balance = current_balance - amount_cents if kind == "expense" else current_balance + amount_cents
+
+            try:
+                tx_id = _insert_budget_tx(
+                    conn,
+                    mode,
+                    kind=kind,
+                    amount_cents=amount_cents,
+                    merchant=merchant,
+                    note="",
+                    source="macrodroid",
+                    raw_text=raw_text,
+                    dedupe_key=dedupe_key,
+                    created_at=now,
+                )
+            except Exception as exc:
+                # Race-condition duplicate on UNIQUE(dedupe_key)
+                if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
+                    conn.rollback()
+                    return {"status": "duplicate", "dedupe_key": dedupe_key, "balance_cents": current_balance}
+                raise
+
+            cur = conn.cursor()
+            cur.execute(
+                f"UPDATE budget_account SET balance_cents = {ph}, updated_at = {ph} WHERE id = 1",
+                (new_balance, now),
+            )
+            cur.close()
+
+            _append_webhook_log(
+                conn,
+                mode,
+                logs_json,
+                {
+                    "received_at": now,
+                    "title": payload.title.strip()[:160],
+                    "text": payload.text.strip()[:240],
+                    "status": "applied",
+                    "reason": "",
+                    "parsed_kind": kind,
+                    "parsed_amount_cents": amount_cents,
+                    "parsed_merchant": merchant,
+                },
+            )
+            broadcast_action = "budget_webhook_applied"
+            result = {
+                "status": "ok",
+                "kind": kind,
+                "amount_cents": amount_cents,
+                "merchant": merchant,
+                "balance_cents": new_balance,
+                "transaction_id": tx_id,
+                "dedupe_key": dedupe_key,
+            }
+
+    await manager.broadcast({"event": "sync", "action": broadcast_action})
+    return result
 
 
 @app.websocket("/ws")

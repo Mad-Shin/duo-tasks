@@ -251,7 +251,7 @@
         </div>
       </section>
 
-      <!-- SECTION: ÉVÉNEMENTS (Always at the bottom) -->
+      <!-- SECTION: ÉVÉNEMENTS -->
       <section id="sec-events" class="section-panel">
         <div class="quiet-section-header">
           <h2>Événements</h2>
@@ -260,6 +260,66 @@
           <ul class="task-list" id="eventsList"></ul>
           <div class="empty-state hidden" id="eventsEmptyState">
             Aucun événement prévu.
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: COMPTE JOINT REVOLUT (Always last on page) -->
+      <section id="sec-budget" class="section-panel">
+        <div class="quiet-section-header">
+          <h2>Compte joint</h2>
+          <button type="button" class="budget-cfg-btn" id="openMacrodroidBtn" title="Configuration MacroDroid Android">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2.5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            <span>MacroDroid</span>
+          </button>
+        </div>
+
+        <div class="budget-card" id="budgetCard">
+          <!-- Optional DUO_PIN Unlock Gate (hidden unless server requires PIN) -->
+          <div class="budget-pin-gate hidden" id="budgetPinGate">
+            <div class="pin-gate-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2.5"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span>Compte joint verrouillé</span>
+            </div>
+            <form id="budgetPinForm" class="pin-gate-form" autocomplete="off">
+              <input type="password" id="budgetPinInput" inputmode="numeric" placeholder="Code PIN Duo…" maxlength="32" required />
+              <button type="submit" class="btn-add">Déverrouiller</button>
+            </form>
+            <div class="pin-gate-error hidden" id="budgetPinError">Code PIN incorrect.</div>
+          </div>
+
+          <!-- Unlocked Metal-Card Body -->
+          <div id="budgetCardBody">
+            <div class="budget-hero-row">
+              <div class="budget-balance-block">
+                <div class="budget-eyebrow">
+                  <span class="budget-status-dot" id="budgetWebhookDot"></span>
+                  <span>Revolut · Joint</span>
+                </div>
+                <div class="budget-balance-value" id="budgetBalanceValue">0,00 €</div>
+                <div class="budget-last-op" id="budgetLastOpLine">Aucune opération enregistrée</div>
+              </div>
+
+              <button type="button" class="btn-add budget-refill-btn" id="openRefillModalBtn">
+                <span>+ Refill</span>
+              </button>
+            </div>
+
+            <div class="budget-drawer-wrap">
+              <button type="button" class="budget-drawer-toggle" id="toggleBudgetDrawerBtn" aria-expanded="false" aria-controls="budgetDrawerPanel">
+                <span id="budgetDrawerHeading">Dernières opérations (0)</span>
+                <svg class="budget-drawer-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+
+              <div class="budget-drawer-panel" id="budgetDrawerPanel">
+                <div class="budget-drawer-inner">
+                  <ul class="budget-tx-list" id="budgetTxList"></ul>
+                  <div class="empty-state budget-empty hidden" id="budgetTxEmpty">
+                    Aucune opération enregistrée.
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -380,6 +440,93 @@
     </div>
   </div>
 
+  <!-- Refill / Recaler / Dépense Modal -->
+  <div class="modal-backdrop hidden" id="refillModal" role="dialog" aria-modal="true" aria-labelledby="refillModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="refillModalTitle">Compte joint</h3>
+        <button type="button" class="btn-close" id="closeRefillModalBtn" aria-label="Fermer">✕</button>
+      </div>
+
+      <div class="mode-switch budget-modal-switch" role="tablist" aria-label="Type d'opération">
+        <button type="button" class="mode-btn active" data-budget-mode="refill">+ Refill</button>
+        <button type="button" class="mode-btn" data-budget-mode="recalibrate">Recaler</button>
+        <button type="button" class="mode-btn" data-budget-mode="expense">Dépense</button>
+      </div>
+
+      <form id="budgetRefillForm" class="drawer-form" autocomplete="off">
+        <div class="refill-quick-chips" id="refillQuickChips">
+          <button type="button" class="preset-task-pill" data-quick-eur="100">+100 €</button>
+          <button type="button" class="preset-task-pill" data-quick-eur="200">+200 €</button>
+          <button type="button" class="preset-task-pill" data-quick-eur="500">+500 €</button>
+        </div>
+
+        <label class="field-group">
+          <span id="budgetAmountLabel">Montant à ajouter (€)</span>
+          <input type="text" id="budgetAmountInput" inputmode="decimal" placeholder="Ex : 200 ou 42,50" maxlength="16" required />
+        </label>
+
+        <label class="field-group hidden" id="budgetMerchantGroup">
+          <span>Commerçant / Libellé</span>
+          <input type="text" id="budgetMerchantInput" placeholder="Ex : Carrefour, Boulangerie…" maxlength="120" />
+        </label>
+
+        <label class="field-group">
+          <span>Note (optionnel)</span>
+          <input type="text" id="budgetNoteInput" placeholder="Ex : Virement mensuel" maxlength="200" />
+        </label>
+
+        <div class="drawer-footer">
+          <span class="budget-modal-hint" id="budgetModalHint"></span>
+          <button type="submit" class="btn-add" id="budgetSubmitBtn">Ajouter</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MacroDroid Android Config & Calibration Modal -->
+  <div class="modal-backdrop hidden" id="macrodroidModal" role="dialog" aria-modal="true" aria-labelledby="macrodroidModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="macrodroidModalTitle">Pont MacroDroid Android</h3>
+        <button type="button" class="btn-close" id="closeMacrodroidModalBtn" aria-label="Fermer">✕</button>
+      </div>
+
+      <div class="drawer-form">
+        <div class="macro-info-box">
+          <div class="macro-row-head">
+            <span class="field-label">URL Webhook (POST JSON)</span>
+            <span class="macro-secret-badge" id="macrodroidSecretBadge">Non configuré</span>
+          </div>
+          <div class="macro-url-row">
+            <code class="macro-code-url" id="macroWebhookUrl"></code>
+            <button type="button" class="btn-soft" id="copyWebhookUrlBtn">Copier</button>
+          </div>
+          <p class="macro-hint">
+            Header requis : <code>X-Webhook-Secret</code> (variable Render <code>REVOLUT_WEBHOOK_SECRET</code>).<br />
+            Body JSON : <code>{"title":"{not_title}","text":"{not_text}","timestamp":"{epoch_time}"}</code>
+          </p>
+        </div>
+
+        <form id="budgetSettingsForm" class="macro-filter-form" autocomplete="off">
+          <label class="field-group">
+            <span>Filtre mot-clé compte joint (vide = toutes les notifs Revolut)</span>
+            <div class="composer-row compact">
+              <input type="text" id="budgetFilterKeywordInput" placeholder="Ex : Compte joint" maxlength="80" />
+              <button type="submit" class="btn-add">Enregistrer</button>
+            </div>
+          </label>
+        </form>
+
+        <div class="macro-logs-box">
+          <span class="field-label">5 dernières notifs reçues (calibrage)</span>
+          <ul class="macro-logs-list" id="macrodroidLogsList"></ul>
+          <div class="lane-empty hidden" id="macrodroidLogsEmpty">Aucune notification reçue pour l'instant.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Install Modal -->
   <div class="modal-backdrop hidden" id="installModal" role="dialog" aria-modal="true" aria-labelledby="installTitle">
     <div class="modal-card">
@@ -427,6 +574,12 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
       </span>
       <span class="fab-label">Courses</span>
+    </button>
+    <button type="button" class="fab-pill" data-dock-target="sec-budget">
+      <span class="fab-ico-wrap" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      </span>
+      <span class="fab-label">Compte</span>
     </button>
   </nav>
 

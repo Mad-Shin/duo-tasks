@@ -11,6 +11,7 @@ Comprehensive deterministic test suite for DuoTasks v2.0:
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import sys
@@ -26,6 +27,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from backend.app.main import _INITIALIZED_URLS, app  # noqa: E402
 from backend.app.parser import parse_quick_add  # noqa: E402
+from backend.app.revolut_parser import parse_revolut_notification  # noqa: E402
 
 
 class TestQuickAddParser(unittest.TestCase):
@@ -459,6 +461,255 @@ class TestTasksAPIAndPWA(unittest.TestCase):
                 else:
                     os.environ["DATABASE_URL"] = prev_url
                 _INITIALIZED_URLS.clear()
+
+    def test_revolut_parser_fr_en_expenses_credits_and_filters(self) -> None:
+        p1 = parse_revolut_notification("Paiement par carte", "Vous avez payé 14,80 € chez Carrefour Market")
+        self.assertFalse(p1["ignored"])
+        self.assertEqual(p1["kind"], "expense")
+        self.assertEqual(p1["amount_cents"], 1480)
+        self.assertEqual(p1["merchant"], "Carrefour Market")
+
+        p2 = parse_revolut_notification("Card payment", "You paid €24.50 at Monoprix")
+        self.assertFalse(p2["ignored"])
+        self.assertEqual(p2["kind"], "expense")
+        self.assertEqual(p2["amount_cents"], 2450)
+        self.assertEqual(p2["merchant"], "Monoprix")
+
+        p3 = parse_revolut_notification("Virement reçu", "Vous avez reçu 1\u202f250,50\u00a0€ de Valentin")
+        self.assertFalse(p3["ignored"])
+        self.assertEqual(p3["kind"], "refill")
+        self.assertEqual(p3["amount_cents"], 125050)
+        self.assertEqual(p3["merchant"], "Valentin")
+
+        p4 = parse_revolut_notification("Compte joint", "+200 € ajouté sur votre compte joint")
+        self.assertFalse(p4["ignored"])
+        self.assertEqual(p4["kind"], "refill")
+        self.assertEqual(p4["amount_cents"], 20000)
+
+        dec_fr = parse_revolut_notification("Paiement refusé", "Paiement de 42,50 € chez Zara refusé")
+        self.assertTrue(dec_fr["ignored"])
+        self.assertEqual(dec_fr["reason"], "declined_or_failed")
+
+        dec_en = parse_revolut_notification("Card payment", "Your payment of €19.99 was declined")
+        self.assertTrue(dec_en["ignored"])
+        self.assertEqual(dec_en["reason"], "declined_or_failed")
+
+        promo = parse_revolut_notification("Revolut", "Invitez un ami et gagnez 50 €")
+        self.assertTrue(promo["ignored"])
+        self.assertEqual(promo["reason"], "promo_or_non_tx")
+
+        kw_miss = parse_revolut_notification(
+            "Carrefour", "Vous avez payé 12,00 €", joint_filter_keyword="Compte joint"
+        )
+        self.assertTrue(kw_miss["ignored"])
+        self.assertEqual(kw_miss["reason"], "keyword_mismatch")
+
+        kw_hit = parse_revolut_notification(
+            "Compte joint", "Vous avez payé 12,00 € chez Picard", joint_filter_keyword="Compte joint"
+        )
+        self.assertFalse(kw_hit["ignored"])
+        self.assertEqual(kw_hit["amount_cents"], 1200)
+        self.assertEqual(kw_hit["merchant"], "Picard")
+
+    def test_budget_refill_expense_recalibrate_and_delete_balance_restore(self) -> None:
+        r0 = self.client.get("/api/budget")
+        self.assertEqual(r0.status_code, 200)
+        self.assertEqual(r0.json()["balance_cents"], 0)
+        self.assertEqual(r0.json()["currency"], "EUR")
+
+        r1 = self.client.post(
+            "/api/budget/refill",
+            json={"mode": "refill", "amount_cents": 50000, "note": "Virement mensuel"},
+        )
+        self.assertEqual(r1.status_code, 200)
+        self.assertEqual(r1.json()["balance_cents"], 50000)
+        refill_id = r1.json()["transactions"][0]["id"]
+
+        r2 = self.client.post(
+            "/api/budget/refill",
+            json={"mode": "expense", "amount_cents": 3250, "merchant": "Boulangerie"},
+        )
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r2.json()["balance_cents"], 46750)
+        self.assertEqual(r2.json()["last_expense"]["merchant"], "Boulangerie")
+        exp_id = r2.json()["transactions"][0]["id"]
+
+        # Deleting expense restores balance
+        r_del_exp = self.client.delete(f"/api/budget/transactions/{exp_id}")
+        self.assertEqual(r_del_exp.status_code, 200)
+        self.assertEqual(r_del_exp.json()["balance_cents"], 50000)
+
+        # Deleting refill deducts balance back to 0
+        r_del_ref = self.client.delete(f"/api/budget/transactions/{refill_id}")
+        self.assertEqual(r_del_ref.status_code, 200)
+        self.assertEqual(r_del_ref.json()["balance_cents"], 0)
+
+        # Recalibrate exact balance (including deleting recalibrate log without altering balance)
+        r_rec = self.client.post(
+            "/api/budget/refill",
+            json={"mode": "recalibrate", "amount_cents": 41235},
+        )
+        self.assertEqual(r_rec.status_code, 200)
+        self.assertEqual(r_rec.json()["balance_cents"], 41235)
+        rec_id = r_rec.json()["transactions"][0]["id"]
+        self.assertEqual(r_rec.json()["transactions"][0]["kind"], "recalibrate")
+
+        r_del_rec = self.client.delete(f"/api/budget/transactions/{rec_id}")
+        self.assertEqual(r_del_rec.status_code, 200)
+        self.assertEqual(r_del_rec.json()["balance_cents"], 41235)
+
+    def test_budget_webhook_auth_idempotence_and_keyword_logs(self) -> None:
+        prev_secret = os.environ.pop("REVOLUT_WEBHOOK_SECRET", None)
+        try:
+            # 503 when secret env var is not configured
+            r_unconf = self.client.post(
+                "/api/budget/webhook/revolut",
+                json={"title": "Carrefour", "text": "Vous avez payé 10,00 €"},
+            )
+            self.assertEqual(r_unconf.status_code, 503)
+
+            os.environ["REVOLUT_WEBHOOK_SECRET"] = "top-secret-99"
+
+            # 401 on missing or wrong secret
+            r_no_hdr = self.client.post(
+                "/api/budget/webhook/revolut",
+                json={"title": "Carrefour", "text": "Vous avez payé 10,00 €"},
+            )
+            self.assertEqual(r_no_hdr.status_code, 401)
+
+            r_bad_hdr = self.client.post(
+                "/api/budget/webhook/revolut",
+                headers={"X-Webhook-Secret": "wrong-secret"},
+                json={"title": "Carrefour", "text": "Vous avez payé 10,00 €"},
+            )
+            self.assertEqual(r_bad_hdr.status_code, 401)
+
+            # Seed starting balance
+            self.client.post("/api/budget/refill", json={"mode": "refill", "amount_cents": 10000})
+
+            payload = {
+                "title": "Compte joint",
+                "text": "Vous avez payé 18,40 € chez Carrefour",
+                "timestamp": "2026-11-20T09:15:00Z",
+            }
+            r_ok = self.client.post(
+                "/api/budget/webhook/revolut",
+                headers={"X-Webhook-Secret": "top-secret-99"},
+                json=payload,
+            )
+            self.assertEqual(r_ok.status_code, 200)
+            body = r_ok.json()
+            self.assertEqual(body["status"], "ok")
+            self.assertEqual(body["kind"], "expense")
+            self.assertEqual(body["amount_cents"], 1840)
+            self.assertEqual(body["merchant"], "Carrefour")
+            self.assertEqual(body["balance_cents"], 8160)
+
+            # Idempotent retry (Render cold-start retry) must NOT double debit
+            r_dup = self.client.post(
+                "/api/budget/webhook/revolut",
+                headers={"X-Webhook-Secret": "top-secret-99"},
+                json=payload,
+            )
+            self.assertEqual(r_dup.status_code, 200)
+            self.assertEqual(r_dup.json()["status"], "duplicate")
+            self.assertEqual(r_dup.json()["balance_cents"], 8160)
+
+            # Configure joint filter keyword
+            r_set = self.client.patch(
+                "/api/budget/settings",
+                json={"joint_filter_keyword": "Compte joint"},
+            )
+            self.assertEqual(r_set.status_code, 200)
+            self.assertEqual(r_set.json()["joint_filter_keyword"], "Compte joint")
+
+            # Personal notification ignored & logged
+            r_ign = self.client.post(
+                "/api/budget/webhook/revolut",
+                headers={"X-Webhook-Secret": "top-secret-99"},
+                json={
+                    "title": "Starbucks",
+                    "text": "Vous avez payé 6,50 € chez Starbucks",
+                    "timestamp": "2026-11-20T09:20:00Z",
+                },
+            )
+            self.assertEqual(r_ign.status_code, 200)
+            self.assertEqual(r_ign.json()["status"], "ignored")
+            self.assertEqual(r_ign.json()["reason"], "keyword_mismatch")
+
+            # Joint incoming refill applied
+            r_in = self.client.post(
+                "/api/budget/webhook/revolut",
+                headers={"X-Webhook-Secret": "top-secret-99"},
+                json={
+                    "title": "Compte joint",
+                    "text": "Vous avez reçu 300,00 € de Lisa",
+                    "timestamp": "2026-11-20T09:25:00Z",
+                },
+            )
+            self.assertEqual(r_in.status_code, 200)
+            self.assertEqual(r_in.json()["status"], "ok")
+            self.assertEqual(r_in.json()["kind"], "refill")
+            self.assertEqual(r_in.json()["balance_cents"], 38160)
+
+            # Verify logs recorded (without secret) & webhook_configured=True
+            r_ov = self.client.get("/api/budget")
+            ov = r_ov.json()
+            self.assertTrue(ov["webhook_configured"])
+            self.assertGreaterEqual(len(ov["webhook_logs"]), 3)
+            self.assertNotIn("top-secret-99", json.dumps(ov))
+        finally:
+            if prev_secret is None:
+                os.environ.pop("REVOLUT_WEBHOOK_SECRET", None)
+            else:
+                os.environ["REVOLUT_WEBHOOK_SECRET"] = prev_secret
+
+    def test_budget_duo_pin_protection(self) -> None:
+        prev_pin = os.environ.get("DUO_PIN")
+        prev_secret = os.environ.get("REVOLUT_WEBHOOK_SECRET")
+        try:
+            os.environ["DUO_PIN"] = "2468"
+            os.environ["REVOLUT_WEBHOOK_SECRET"] = "wh-pin-test"
+
+            self.assertEqual(self.client.get("/api/budget").status_code, 401)
+            self.assertEqual(
+                self.client.get("/api/budget", headers={"X-Duo-Pin": "0000"}).status_code,
+                401,
+            )
+            self.assertEqual(
+                self.client.post("/api/budget/refill", json={"mode": "refill", "amount_cents": 1000}).status_code,
+                401,
+            )
+
+            r_ok = self.client.get("/api/budget", headers={"X-Duo-Pin": "2468"})
+            self.assertEqual(r_ok.status_code, 200)
+            self.assertTrue(r_ok.json()["pin_required"])
+
+            r_ref = self.client.post(
+                "/api/budget/refill",
+                headers={"X-Duo-Pin": "2468"},
+                json={"mode": "refill", "amount_cents": 10000},
+            )
+            self.assertEqual(r_ref.status_code, 200)
+            self.assertEqual(r_ref.json()["balance_cents"], 10000)
+
+            # Webhook stays accessible with X-Webhook-Secret alone (no X-Duo-Pin needed)
+            r_wh = self.client.post(
+                "/api/budget/webhook/revolut",
+                headers={"X-Webhook-Secret": "wh-pin-test"},
+                json={"title": "Franprix", "text": "Vous avez payé 9,50 € chez Franprix", "timestamp": "2026-11-20T10:00:00Z"},
+            )
+            self.assertEqual(r_wh.status_code, 200)
+            self.assertEqual(r_wh.json()["balance_cents"], 9050)
+        finally:
+            if prev_pin is None:
+                os.environ.pop("DUO_PIN", None)
+            else:
+                os.environ["DUO_PIN"] = prev_pin
+            if prev_secret is None:
+                os.environ.pop("REVOLUT_WEBHOOK_SECRET", None)
+            else:
+                os.environ["REVOLUT_WEBHOOK_SECRET"] = prev_secret
 
 
 if __name__ == "__main__":

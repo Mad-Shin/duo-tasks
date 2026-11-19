@@ -9,3 +9,7 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      - key: REVOLUT_WEBHOOK_SECRET
+        sync: false
+      - key: DUO_PIN
+        sync: false

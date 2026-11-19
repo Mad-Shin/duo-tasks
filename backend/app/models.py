@@ -183,3 +183,60 @@ class CoupleProfileUpdate(BaseModel):
 class KudosRequest(BaseModel):
     from_partner: str = Field(default="me", max_length=20)
     message: str = Field(default="Merci mon cœur ❤️", min_length=1, max_length=160)
+
+
+# --- Joint Account Budget (Revolut via MacroDroid) ---
+
+
+class BudgetTransactionOut(BaseModel):
+    id: int
+    kind: str
+    amount_cents: int
+    merchant: str = ""
+    note: str = ""
+    source: str = "manual"
+    raw_text: str = ""
+    created_at: str
+
+
+class WebhookLogEntry(BaseModel):
+    received_at: str
+    title: str = ""
+    text: str = ""
+    status: str = "ignored"
+    reason: str = ""
+    parsed_kind: str = ""
+    parsed_amount_cents: int = 0
+    parsed_merchant: str = ""
+
+
+class BudgetOverviewOut(BaseModel):
+    balance_cents: int
+    currency: str = "EUR"
+    joint_filter_keyword: str = ""
+    webhook_configured: bool = False
+    pin_required: bool = False
+    updated_at: str = ""
+    last_expense: Optional[BudgetTransactionOut] = None
+    last_transaction: Optional[BudgetTransactionOut] = None
+    transactions: list[BudgetTransactionOut] = Field(default_factory=list)
+    webhook_logs: list[WebhookLogEntry] = Field(default_factory=list)
+
+
+class BudgetRefillRequest(BaseModel):
+    mode: str = Field(default="refill", pattern="^(refill|expense|recalibrate)$")
+    amount_cents: Optional[int] = None
+    amount: Optional[float] = None
+    merchant: str = Field(default="", max_length=120)
+    note: str = Field(default="", max_length=200)
+
+
+class BudgetSettingsUpdate(BaseModel):
+    joint_filter_keyword: str = Field(default="", max_length=80)
+
+
+class RevolutWebhookPayload(BaseModel):
+    title: str = Field(default="", max_length=300)
+    text: str = Field(default="", max_length=1000)
+    timestamp: Optional[str | int | float] = None
+    dedupe_key: Optional[str] = Field(default=None, max_length=128)

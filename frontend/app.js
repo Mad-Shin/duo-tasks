@@ -30,6 +30,11 @@ const state = {
   searchQuery: "",
   showCompleted: false,
   editingTaskId: null,
+  budget: null,
+  budgetLocked: false,
+  budgetPin: localStorage.getItem("duotasks_duo_pin") || "",
+  budgetDrawerOpen: false,
+  budgetModalMode: "refill",
   ws: null,
   reconnectDelay: 1000
 };
@@ -126,7 +131,45 @@ const els = {
   editLocation: document.getElementById("editLocation"),
   editQuantity: document.getElementById("editQuantity"),
   drawerDeleteBtn: document.getElementById("drawerDeleteBtn"),
-  toastContainer: document.getElementById("toastContainer")
+  toastContainer: document.getElementById("toastContainer"),
+
+  // Joint Account Budget (#sec-budget + Modals)
+  budgetCard: document.getElementById("budgetCard"),
+  budgetPinGate: document.getElementById("budgetPinGate"),
+  budgetPinForm: document.getElementById("budgetPinForm"),
+  budgetPinInput: document.getElementById("budgetPinInput"),
+  budgetPinError: document.getElementById("budgetPinError"),
+  budgetCardBody: document.getElementById("budgetCardBody"),
+  budgetWebhookDot: document.getElementById("budgetWebhookDot"),
+  budgetBalanceValue: document.getElementById("budgetBalanceValue"),
+  budgetLastOpLine: document.getElementById("budgetLastOpLine"),
+  openRefillModalBtn: document.getElementById("openRefillModalBtn"),
+  toggleBudgetDrawerBtn: document.getElementById("toggleBudgetDrawerBtn"),
+  budgetDrawerHeading: document.getElementById("budgetDrawerHeading"),
+  budgetDrawerPanel: document.getElementById("budgetDrawerPanel"),
+  budgetTxList: document.getElementById("budgetTxList"),
+  budgetTxEmpty: document.getElementById("budgetTxEmpty"),
+  refillModal: document.getElementById("refillModal"),
+  closeRefillModalBtn: document.getElementById("closeRefillModalBtn"),
+  budgetRefillForm: document.getElementById("budgetRefillForm"),
+  refillQuickChips: document.getElementById("refillQuickChips"),
+  budgetAmountLabel: document.getElementById("budgetAmountLabel"),
+  budgetAmountInput: document.getElementById("budgetAmountInput"),
+  budgetMerchantGroup: document.getElementById("budgetMerchantGroup"),
+  budgetMerchantInput: document.getElementById("budgetMerchantInput"),
+  budgetNoteInput: document.getElementById("budgetNoteInput"),
+  budgetModalHint: document.getElementById("budgetModalHint"),
+  budgetSubmitBtn: document.getElementById("budgetSubmitBtn"),
+  openMacrodroidBtn: document.getElementById("openMacrodroidBtn"),
+  macrodroidModal: document.getElementById("macrodroidModal"),
+  closeMacrodroidModalBtn: document.getElementById("closeMacrodroidModalBtn"),
+  macrodroidSecretBadge: document.getElementById("macrodroidSecretBadge"),
+  macroWebhookUrl: document.getElementById("macroWebhookUrl"),
+  copyWebhookUrlBtn: document.getElementById("copyWebhookUrlBtn"),
+  budgetSettingsForm: document.getElementById("budgetSettingsForm"),
+  budgetFilterKeywordInput: document.getElementById("budgetFilterKeywordInput"),
+  macrodroidLogsList: document.getElementById("macrodroidLogsList"),
+  macrodroidLogsEmpty: document.getElementById("macrodroidLogsEmpty")
 };
 
 function partnerName(key) {
@@ -356,15 +399,279 @@ function showToast(message, actionLabel = null, actionCallback = null) {
 }
 
 async function apiJson(url, options = {}) {
+  const { headers: customHeaders, ...restOptions } = options;
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options
+    ...restOptions,
+    headers: { "Content-Type": "application/json", ...(customHeaders || {}) }
   });
   if (!res.ok) {
     const msg = await res.text();
-    throw new Error(`HTTP ${res.status}: ${msg}`);
+    const err = new Error(`HTTP ${res.status}: ${msg}`);
+    err.status = res.status;
+    throw err;
   }
   return res.json();
+}
+
+async function budgetApiJson(url, options = {}) {
+  const extraHeaders = state.budgetPin ? { "X-Duo-Pin": state.budgetPin } : {};
+  return apiJson(url, {
+    ...options,
+    headers: { ...extraHeaders, ...(options.headers || {}) }
+  });
+}
+
+function formatCentsFr(cents, withSign = false) {
+  const num = Number(cents) || 0;
+  const absFormatted = new Intl.NumberFormat("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Math.abs(num) / 100);
+  if (num < 0) return `-${absFormatted} €`;
+  if (withSign && num > 0) return `+${absFormatted} €`;
+  return `${absFormatted} €`;
+}
+
+function parseEuroInputToCents(raw) {
+  const cleaned = String(raw || "")
+    .replace(/[\s\u00a0\u202f€]/g, "")
+    .replace(",", ".");
+  if (!/^-?\d+(?:\.\d{1,2})?$/.test(cleaned)) return null;
+  const val = Number(cleaned);
+  if (!Number.isFinite(val)) return null;
+  return Math.round(val * 100);
+}
+
+function formatRelativeFr(iso) {
+  if (!iso) return "";
+  try {
+    const dt = new Date(iso);
+    const diffSec = Math.max(0, Math.floor((Date.now() - dt.getTime()) / 1000));
+    if (diffSec < 60) return "à l'instant";
+    if (diffSec < 3600) return `il y a ${Math.floor(diffSec / 60)} min`;
+    if (diffSec < 86400) return `il y a ${Math.floor(diffSec / 3600)} h`;
+    if (diffSec < 172800) return "hier";
+    return dt.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  } catch {
+    return "";
+  }
+}
+
+function formatShortTxDate(iso) {
+  if (!iso) return "";
+  try {
+    const dt = new Date(iso);
+    const day = dt.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    const time = dt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    return `${day} · ${time}`;
+  } catch {
+    return "";
+  }
+}
+
+async function refreshBudget() {
+  try {
+    const data = await budgetApiJson("/api/budget");
+    state.budget = data;
+    state.budgetLocked = false;
+    els.budgetPinError.classList.add("hidden");
+    renderBudget();
+  } catch (err) {
+    if (err && err.status === 401) {
+      state.budgetLocked = true;
+      renderBudget();
+    } else {
+      console.error(err);
+    }
+  }
+}
+
+function renderBudget() {
+  if (state.budgetLocked) {
+    els.budgetPinGate.classList.remove("hidden");
+    els.budgetCardBody.classList.add("hidden");
+    return;
+  }
+
+  els.budgetPinGate.classList.add("hidden");
+  els.budgetCardBody.classList.remove("hidden");
+
+  const b = state.budget;
+  if (!b) return;
+
+  const bal = Number(b.balance_cents || 0);
+  els.budgetBalanceValue.textContent = formatCentsFr(bal, false);
+  els.budgetBalanceValue.classList.toggle("negative", bal < 0);
+  els.budgetWebhookDot.classList.toggle("live", Boolean(b.webhook_configured));
+
+  const lastOp = b.last_transaction || b.last_expense;
+  if (lastOp) {
+    const signedAmt =
+      lastOp.kind === "expense"
+        ? formatCentsFr(-Math.abs(lastOp.amount_cents))
+        : lastOp.kind === "refill"
+        ? formatCentsFr(Math.abs(lastOp.amount_cents), true)
+        : formatCentsFr(lastOp.amount_cents, true);
+    const rel = formatRelativeFr(lastOp.created_at);
+    const parts = [signedAmt, lastOp.merchant || "Opération"];
+    if (rel) parts.push(rel);
+    els.budgetLastOpLine.textContent = `Dernière : ${parts.join(" · ")}`;
+  } else {
+    els.budgetLastOpLine.textContent = "Aucune opération enregistrée";
+  }
+
+  const txs = Array.isArray(b.transactions) ? b.transactions : [];
+  els.budgetDrawerHeading.textContent = `Dernières opérations (${txs.length})`;
+  els.budgetDrawerPanel.classList.toggle("open", state.budgetDrawerOpen);
+  els.toggleBudgetDrawerBtn.setAttribute("aria-expanded", String(state.budgetDrawerOpen));
+
+  els.budgetTxList.innerHTML = "";
+  els.budgetTxEmpty.classList.toggle("hidden", txs.length > 0);
+
+  txs.forEach((tx) => {
+    const li = document.createElement("li");
+    li.className = "budget-tx-item";
+
+    const main = document.createElement("div");
+    main.className = "budget-tx-main";
+
+    const merch = document.createElement("div");
+    merch.className = "budget-tx-merchant";
+    merch.textContent = tx.merchant || (tx.kind === "refill" ? "Refill" : "Dépense");
+    main.appendChild(merch);
+
+    const meta = document.createElement("div");
+    meta.className = "budget-tx-meta";
+
+    const dateSp = document.createElement("span");
+    dateSp.textContent = formatShortTxDate(tx.created_at);
+    meta.appendChild(dateSp);
+
+    const srcBadge = document.createElement("span");
+    const isAuto = tx.source === "macrodroid";
+    srcBadge.className = `budget-src-badge${isAuto ? " auto" : ""}`;
+    srcBadge.textContent = isAuto ? "Auto" : "Manuel";
+    meta.appendChild(srcBadge);
+
+    if (tx.note) {
+      const noteSp = document.createElement("span");
+      noteSp.textContent = tx.note;
+      meta.appendChild(noteSp);
+    }
+    main.appendChild(meta);
+
+    const right = document.createElement("div");
+    right.className = "budget-tx-right";
+
+    const amt = document.createElement("span");
+    amt.className = `budget-tx-amt ${tx.kind}`;
+    if (tx.kind === "expense") {
+      amt.textContent = formatCentsFr(-Math.abs(tx.amount_cents));
+    } else if (tx.kind === "refill") {
+      amt.textContent = formatCentsFr(Math.abs(tx.amount_cents), true);
+    } else {
+      amt.textContent = formatCentsFr(tx.amount_cents, true);
+    }
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "row-action-btn delete";
+    delBtn.setAttribute("aria-label", "Supprimer l'opération");
+    delBtn.innerHTML = SVG_TRASH;
+    delBtn.addEventListener("click", async () => {
+      try {
+        const updated = await budgetApiJson(`/api/budget/transactions/${tx.id}`, { method: "DELETE" });
+        state.budget = updated;
+        renderBudget();
+        showToast("Opération supprimée");
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    right.appendChild(amt);
+    right.appendChild(delBtn);
+
+    li.appendChild(main);
+    li.appendChild(right);
+    els.budgetTxList.appendChild(li);
+  });
+
+  renderMacrodroidModal();
+}
+
+function renderMacrodroidModal() {
+  const b = state.budget;
+  if (!b) return;
+  els.macroWebhookUrl.textContent = `${window.location.origin}/api/budget/webhook/revolut`;
+  els.macrodroidSecretBadge.textContent = b.webhook_configured ? "Secret configuré" : "Secret à définir";
+  els.macrodroidSecretBadge.classList.toggle("ok", Boolean(b.webhook_configured));
+  if (document.activeElement !== els.budgetFilterKeywordInput) {
+    els.budgetFilterKeywordInput.value = b.joint_filter_keyword || "";
+  }
+
+  const logs = Array.isArray(b.webhook_logs) ? b.webhook_logs : [];
+  els.macrodroidLogsList.innerHTML = "";
+  els.macrodroidLogsEmpty.classList.toggle("hidden", logs.length > 0);
+  logs.forEach((entry) => {
+    const li = document.createElement("li");
+    li.className = "macro-log-item";
+
+    const top = document.createElement("div");
+    top.className = "macro-log-top";
+
+    const st = document.createElement("span");
+    st.className = `macro-log-status ${entry.status === "applied" ? "applied" : "ignored"}`;
+    st.textContent =
+      entry.status === "applied"
+        ? `Appliqué · ${formatCentsFr(entry.parsed_amount_cents)}`
+        : `Ignoré${entry.reason ? ` (${entry.reason})` : ""}`;
+
+    const dt = document.createElement("span");
+    dt.className = "subtitle";
+    dt.textContent = formatShortTxDate(entry.received_at);
+
+    top.appendChild(st);
+    top.appendChild(dt);
+
+    const raw = document.createElement("div");
+    raw.className = "macro-log-raw";
+    raw.textContent = [entry.title, entry.text].filter(Boolean).join(" — ") || "(vide)";
+
+    li.appendChild(top);
+    li.appendChild(raw);
+    els.macrodroidLogsList.appendChild(li);
+  });
+}
+
+function setBudgetModalMode(mode) {
+  state.budgetModalMode = mode;
+  document.querySelectorAll("[data-budget-mode]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.budgetMode === mode);
+  });
+
+  els.refillQuickChips.classList.toggle("hidden", mode !== "refill");
+  els.budgetMerchantGroup.classList.toggle("hidden", mode !== "expense");
+
+  const balText = state.budget ? formatCentsFr(state.budget.balance_cents) : "0,00 €";
+  els.budgetModalHint.textContent = `Solde actuel : ${balText}`;
+
+  if (mode === "refill") {
+    els.budgetAmountLabel.textContent = "Montant à ajouter (€)";
+    els.budgetAmountInput.placeholder = "Ex : 200 ou 42,50";
+    els.budgetNoteInput.placeholder = "Ex : Virement mensuel";
+    els.budgetSubmitBtn.textContent = "Ajouter";
+  } else if (mode === "recalibrate") {
+    els.budgetAmountLabel.textContent = "Vrai solde exact Revolut (€)";
+    els.budgetAmountInput.placeholder = balText.replace(" €", "");
+    els.budgetNoteInput.placeholder = "Ex : Recalage appli Revolut";
+    els.budgetSubmitBtn.textContent = "Recaler";
+  } else {
+    els.budgetAmountLabel.textContent = "Montant de la dépense (€)";
+    els.budgetAmountInput.placeholder = "Ex : 14,80";
+    els.budgetNoteInput.placeholder = "Optionnel";
+    els.budgetSubmitBtn.textContent = "Débiter";
+  }
 }
 
 async function refreshAll() {
@@ -383,6 +690,7 @@ async function refreshAll() {
   renderProfileLabels();
   renderPresetButtons();
   renderAllSections();
+  await refreshBudget();
 }
 
 function renderAllSections() {
@@ -806,12 +1114,18 @@ els.secRecurring.addEventListener(
   true
 );
 
-// 3 Floating Bottom-Right Buttons
+// 4 Vertically Stacked Floating Bottom-Right Buttons
 document.querySelectorAll(".fab-pill").forEach((btn) => {
   btn.addEventListener("click", () => {
-    const mode = btn.dataset.dockMode || "task";
+    const mode = btn.dataset.dockMode || "";
     const targetId = btn.dataset.dockTarget || "sec-tasks";
-    setComposerMode(mode, false);
+    if (mode) {
+      setComposerMode(mode, false);
+    } else {
+      document.querySelectorAll(".fab-pill").forEach((b) => {
+        b.classList.toggle("active", b === btn);
+      });
+    }
     if (targetId === "sec-tasks") {
       scrollToCarouselSlide("tasks");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1078,6 +1392,133 @@ els.installHelpBtn.addEventListener("click", () => els.installModal.classList.re
 els.closeModalBtn.addEventListener("click", () => els.installModal.classList.add("hidden"));
 els.installModal.addEventListener("click", (evt) => {
   if (evt.target === els.installModal) els.installModal.classList.add("hidden");
+});
+
+// Joint Account Budget Events
+els.toggleBudgetDrawerBtn.addEventListener("click", () => {
+  state.budgetDrawerOpen = !state.budgetDrawerOpen;
+  renderBudget();
+});
+
+els.openRefillModalBtn.addEventListener("click", () => {
+  els.budgetAmountInput.value = "";
+  els.budgetMerchantInput.value = "";
+  els.budgetNoteInput.value = "";
+  setBudgetModalMode("refill");
+  els.refillModal.classList.remove("hidden");
+  els.budgetAmountInput.focus();
+});
+
+els.closeRefillModalBtn.addEventListener("click", () => els.refillModal.classList.add("hidden"));
+els.refillModal.addEventListener("click", (evt) => {
+  if (evt.target === els.refillModal) els.refillModal.classList.add("hidden");
+});
+
+document.querySelectorAll("[data-budget-mode]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    setBudgetModalMode(btn.dataset.budgetMode || "refill");
+    els.budgetAmountInput.focus();
+  });
+});
+
+document.querySelectorAll("[data-quick-eur]").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    els.budgetAmountInput.value = chip.dataset.quickEur || "";
+    els.budgetAmountInput.focus();
+  });
+});
+
+els.budgetRefillForm.addEventListener("submit", async (evt) => {
+  evt.preventDefault();
+  const cents = parseEuroInputToCents(els.budgetAmountInput.value);
+  if (cents === null || (state.budgetModalMode !== "recalibrate" && cents <= 0)) {
+    showToast("Montant invalide");
+    return;
+  }
+  try {
+    const updated = await budgetApiJson("/api/budget/refill", {
+      method: "POST",
+      body: JSON.stringify({
+        mode: state.budgetModalMode,
+        amount_cents: cents,
+        merchant: els.budgetMerchantInput.value.trim(),
+        note: els.budgetNoteInput.value.trim()
+      })
+    });
+    state.budget = updated;
+    els.refillModal.classList.add("hidden");
+    renderBudget();
+    const msg =
+      state.budgetModalMode === "refill"
+        ? `Refill ${formatCentsFr(cents, true)}`
+        : state.budgetModalMode === "recalibrate"
+        ? `Solde recalé à ${formatCentsFr(cents)}`
+        : `Dépense ${formatCentsFr(-cents)}`;
+    showToast(msg);
+  } catch (err) {
+    console.error(err);
+    showToast("Erreur lors de l'enregistrement");
+  }
+});
+
+// MacroDroid Config Modal
+els.openMacrodroidBtn.addEventListener("click", () => {
+  renderMacrodroidModal();
+  els.macrodroidModal.classList.remove("hidden");
+});
+
+els.closeMacrodroidModalBtn.addEventListener("click", () => els.macrodroidModal.classList.add("hidden"));
+els.macrodroidModal.addEventListener("click", (evt) => {
+  if (evt.target === els.macrodroidModal) els.macrodroidModal.classList.add("hidden");
+});
+
+els.copyWebhookUrlBtn.addEventListener("click", async () => {
+  const url = `${window.location.origin}/api/budget/webhook/revolut`;
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast("URL webhook copiée");
+  } catch {
+    showToast(url);
+  }
+});
+
+els.budgetSettingsForm.addEventListener("submit", async (evt) => {
+  evt.preventDefault();
+  try {
+    const updated = await budgetApiJson("/api/budget/settings", {
+      method: "PATCH",
+      body: JSON.stringify({
+        joint_filter_keyword: els.budgetFilterKeywordInput.value.trim()
+      })
+    });
+    state.budget = updated;
+    renderBudget();
+    showToast("Filtre enregistré");
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+// DUO_PIN Unlock Form
+els.budgetPinForm.addEventListener("submit", async (evt) => {
+  evt.preventDefault();
+  const pin = els.budgetPinInput.value.trim();
+  if (!pin) return;
+  state.budgetPin = pin;
+  try {
+    const data = await budgetApiJson("/api/budget");
+    localStorage.setItem("duotasks_duo_pin", pin);
+    state.budget = data;
+    state.budgetLocked = false;
+    els.budgetPinInput.value = "";
+    els.budgetPinError.classList.add("hidden");
+    renderBudget();
+    showToast("Compte joint déverrouillé");
+  } catch (err) {
+    state.budgetPin = "";
+    localStorage.removeItem("duotasks_duo_pin");
+    els.budgetPinError.classList.remove("hidden");
+  }
 });
 
 if ("serviceWorker" in navigator) {

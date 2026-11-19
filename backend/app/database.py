@@ -196,11 +196,38 @@ def init_db() -> None:
         )
         """
 
+        budget_account_ddl = """
+        CREATE TABLE IF NOT EXISTS budget_account (
+            id INTEGER PRIMARY KEY,
+            balance_cents INTEGER NOT NULL DEFAULT 0,
+            currency TEXT NOT NULL DEFAULT 'EUR',
+            joint_filter_keyword TEXT NOT NULL DEFAULT '',
+            webhook_logs_json TEXT NOT NULL DEFAULT '[]',
+            updated_at TEXT NOT NULL DEFAULT ''
+        )
+        """
+
+        budget_tx_ddl = f"""
+        CREATE TABLE IF NOT EXISTS budget_transactions (
+            id {id_col},
+            kind TEXT NOT NULL DEFAULT 'expense',
+            amount_cents INTEGER NOT NULL DEFAULT 0,
+            merchant TEXT NOT NULL DEFAULT '',
+            note TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT 'manual',
+            raw_text TEXT NOT NULL DEFAULT '',
+            dedupe_key TEXT UNIQUE,
+            created_at TEXT NOT NULL
+        )
+        """
+
         cur = conn.cursor()
         cur.execute(tasks_ddl)
         cur.execute(staples_ddl)
         cur.execute(activity_ddl)
         cur.execute(profile_ddl)
+        cur.execute(budget_account_ddl)
+        cur.execute(budget_tx_ddl)
 
         # Idempotent migrations for pre-existing databases
         migrations: list[tuple[str, str]] = [
@@ -229,6 +256,8 @@ def init_db() -> None:
             "preset_tasks_json",
             "TEXT NOT NULL DEFAULT '[\"Deep clean salle de bain hebdo\", \"Deep clean cuisine hebdo\"]'",
         )
+        _safe_add_column(cur, mode, "budget_account", "joint_filter_keyword", "TEXT NOT NULL DEFAULT ''")
+        _safe_add_column(cur, mode, "budget_account", "webhook_logs_json", "TEXT NOT NULL DEFAULT '[]'")
 
         # Seed default grocery staples idempotently
         cur.execute("SELECT name FROM grocery_staples")
@@ -259,6 +288,17 @@ def init_db() -> None:
             cur.execute(
                 f"UPDATE couple_profile SET wife_name = {ph} WHERE id = 1 AND wife_name = {ph}",
                 ("Lisa", "Chérie"),
+            )
+
+        # Seed budget_account row id=1 if missing
+        cur.execute("SELECT COUNT(*) AS cnt FROM budget_account")
+        bud_row = cur.fetchone()
+        bud_cnt = int(bud_row["cnt"] if isinstance(bud_row, dict) or hasattr(bud_row, "keys") else bud_row[0])
+        if bud_cnt == 0:
+            cur.execute(
+                f"INSERT INTO budget_account (id, balance_cents, currency, joint_filter_keyword, webhook_logs_json, updated_at) "
+                f"VALUES (1, 0, {ph}, {ph}, {ph}, {ph})",
+                ("EUR", "", "[]", ""),
             )
 
         cur.close()
