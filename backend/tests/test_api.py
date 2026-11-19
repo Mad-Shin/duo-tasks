@@ -92,6 +92,17 @@ class TestQuickAddParser(unittest.TestCase):
         self.assertEqual(p3["quantity"], "x2")
         self.assertEqual(p3["aisle"], "Boulangerie")
 
+    def test_parse_weekdays_french_and_english(self) -> None:
+        p_fr = parse_quick_add("Resto italien 20h vendredi @both #date !2")
+        self.assertEqual(p_fr["title"], "Resto italien 20h")
+        self.assertEqual(p_fr["due_label"], "vendredi")
+        self.assertEqual(p_fr["category"], "date")
+        self.assertRegex(p_fr["due_date"], r"^\d{4}-\d{2}-\d{2}$")
+
+        p_en = parse_quick_add("Sport monday @me #daily")
+        self.assertEqual(p_en["title"], "Sport")
+        self.assertEqual(p_en["due_label"], "lundi")
+
 
 class TestTasksAPIAndPWA(unittest.TestCase):
     def setUp(self) -> None:
@@ -237,7 +248,7 @@ class TestTasksAPIAndPWA(unittest.TestCase):
         r_staples = self.client.get("/api/groceries/staples")
         self.assertEqual(r_staples.status_code, 200)
         staples = r_staples.json()
-        self.assertGreaterEqual(len(staples), 20)
+        self.assertGreaterEqual(len(staples), 24)
 
         r_new = self.client.post(
             "/api/groceries/staples",
@@ -261,7 +272,11 @@ class TestTasksAPIAndPWA(unittest.TestCase):
         r_packs = self.client.get("/api/routines/packs")
         self.assertEqual(r_packs.status_code, 200)
         packs = r_packs.json()
-        self.assertGreaterEqual(len(packs), 4)
+        self.assertGreaterEqual(len(packs), 5)
+
+        r_date_pack = self.client.post("/api/routines/packs/date-night-apero/apply")
+        self.assertEqual(r_date_pack.status_code, 200)
+        self.assertEqual(r_date_pack.json()["added_count"], 4)
 
         r_apply = self.client.post("/api/routines/packs/routine-quotidienne/apply")
         self.assertEqual(r_apply.status_code, 200)
@@ -272,7 +287,7 @@ class TestTasksAPIAndPWA(unittest.TestCase):
         self.assertEqual(r_apply2.json()["added_count"], 0)
 
         # Complete all 3 daily routines, then reset
-        tasks = self.client.get("/api/tasks").json()
+        tasks = [t for t in self.client.get("/api/tasks").json() if t["recurring"]]
         for t in tasks:
             self.client.patch(f"/api/tasks/{t['id']}", json={"completed": True, "completed_by": "me"})
 
@@ -280,8 +295,35 @@ class TestTasksAPIAndPWA(unittest.TestCase):
         self.assertEqual(r_reset.status_code, 200)
         self.assertEqual(r_reset.json()["reset_count"], 3)
 
-        after = self.client.get("/api/tasks").json()
+        after = [t for t in self.client.get("/api/tasks").json() if t["recurring"]]
         self.assertTrue(all(not t["completed"] for t in after))
+
+    def test_couple_profile_love_note_and_kudos(self) -> None:
+        r_prof = self.client.get("/api/couple/profile")
+        self.assertEqual(r_prof.status_code, 200)
+        self.assertEqual(r_prof.json()["me_name"], "Valentin")
+        self.assertEqual(r_prof.json()["kudos_count"], 0)
+
+        r_upd = self.client.patch(
+            "/api/couple/profile",
+            json={"wife_name": "Emma", "wife_emoji": "🌻", "love_note": "Apéro à 19h30 ?", "love_note_author": "me"},
+        )
+        self.assertEqual(r_upd.status_code, 200)
+        self.assertEqual(r_upd.json()["wife_name"], "Emma")
+        self.assertEqual(r_upd.json()["wife_emoji"], "🌻")
+        self.assertEqual(r_upd.json()["love_note"], "Apéro à 19h30 ?")
+
+        r_kudos = self.client.post(
+            "/api/couple/kudos",
+            json={"from_partner": "wife", "message": "Trop hâte ❤️"},
+        )
+        self.assertEqual(r_kudos.status_code, 200)
+        self.assertEqual(r_kudos.json()["kudos_count"], 1)
+
+        r_stats = self.client.get("/api/stats")
+        self.assertEqual(r_stats.status_code, 200)
+        self.assertEqual(r_stats.json()["extra"]["kudos_count"], 1)
+        self.assertGreaterEqual(r_stats.json()["extra"]["couple_score"], 15)
 
     def test_couple_stats_and_activity_log(self) -> None:
         t1 = self.client.post("/api/tasks", json={"raw_input": "Courses @both #courses !1"}).json()

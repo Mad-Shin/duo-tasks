@@ -37,7 +37,20 @@ DUE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(?<!\w)(?:today|aujourd['’]?hui|aujourdhui|auj)(?!\w)", re.IGNORECASE), "today"),
     (re.compile(r"(?<!\w)(?:week-?end|samedi|dimanche)(?!\w)", re.IGNORECASE), "weekend"),
     (re.compile(r"(?<!\w)(?:later|plus\s+tard|bient[oô]t)(?!\w)", re.IGNORECASE), "later"),
+    (re.compile(r"(?<!\w)(?:lundi|monday)(?!\w)", re.IGNORECASE), "lundi"),
+    (re.compile(r"(?<!\w)(?:mardi|tuesday)(?!\w)", re.IGNORECASE), "mardi"),
+    (re.compile(r"(?<!\w)(?:mercredi|wednesday)(?!\w)", re.IGNORECASE), "mercredi"),
+    (re.compile(r"(?<!\w)(?:jeudi|thursday)(?!\w)", re.IGNORECASE), "jeudi"),
+    (re.compile(r"(?<!\w)(?:vendredi|friday)(?!\w)", re.IGNORECASE), "vendredi"),
 ]
+
+WEEKDAY_INDEX: dict[str, int] = {
+    "lundi": 0,
+    "mardi": 1,
+    "mercredi": 2,
+    "jeudi": 3,
+    "vendredi": 4,
+}
 
 RECURRENCE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (
@@ -183,7 +196,7 @@ def normalize_category(token: str | None) -> str:
 
 
 def compute_due_date(due_label: str, today: date | None = None) -> str:
-    """Compute an ISO YYYY-MM-DD date from a due bucket label."""
+    """Compute an ISO YYYY-MM-DD date from a due bucket label or weekday."""
     ref = today or date.today()
     label = (due_label or "today").strip().lower()
     if label == "tomorrow":
@@ -193,6 +206,9 @@ def compute_due_date(due_label: str, today: date | None = None) -> str:
         return (ref + timedelta(days=days_until_sat)).isoformat()
     if label == "later":
         return (ref + timedelta(days=7)).isoformat()
+    if label in WEEKDAY_INDEX:
+        delta = (WEEKDAY_INDEX[label] - ref.weekday()) % 7
+        return (ref + timedelta(days=delta)).isoformat()
     return ref.isoformat()
 
 

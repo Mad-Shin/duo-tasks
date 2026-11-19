@@ -15,10 +15,28 @@ const RECURRENCE_LABELS = {
   monthly: "🔁 mensuel"
 };
 
+const TEMPORAL_BUCKETS = [
+  { key: "today", label: "🔥 Prioritaires & Aujourd'hui" },
+  { key: "tomorrow", label: "🌅 Demain" },
+  { key: "weekend", label: "🛋️ Ce Week-end" },
+  { key: "week", label: "📅 Cette semaine" },
+  { key: "later", label: "🗓️ Plus tard" }
+];
+
 const state = {
   activeTab: "tasks",
   identity: localStorage.getItem("duotasks_identity") || "me",
   theme: localStorage.getItem("duotasks_theme") || "light",
+  groupedMode: localStorage.getItem("duotasks_grouped") !== "false",
+  profile: {
+    me_name: "Valentin",
+    me_emoji: "🦊",
+    wife_name: "Chérie",
+    wife_emoji: "🌸",
+    love_note: "On fait quoi de beau ce soir ? ✨",
+    love_note_author: "both",
+    kudos_count: 0
+  },
   tasks: [],
   allTasks: [],
   staples: [],
@@ -43,11 +61,34 @@ const els = {
   installModal: document.getElementById("installModal"),
   closeModalBtn: document.getElementById("closeModalBtn"),
   groceriesBadge: document.getElementById("groceriesBadge"),
+  idBtnMe: document.getElementById("idBtnMe"),
+  idBtnWife: document.getElementById("idBtnWife"),
+  filterChipMe: document.getElementById("filterChipMe"),
+  filterChipWife: document.getElementById("filterChipWife"),
+
+  // Couple Banner & Profile Modal
+  loveNoteText: document.getElementById("loveNoteText"),
+  loveNoteAuthorLabel: document.getElementById("loveNoteAuthorLabel"),
+  toggleLoveNoteBtn: document.getElementById("toggleLoveNoteBtn"),
+  loveNoteForm: document.getElementById("loveNoteForm"),
+  loveNoteInput: document.getElementById("loveNoteInput"),
+  sendKudosBtn: document.getElementById("sendKudosBtn"),
+  kudosCountBadge: document.getElementById("kudosCountBadge"),
+  karmaScore: document.getElementById("karmaScore"),
+  editProfileBtn: document.getElementById("editProfileBtn"),
+  profileModal: document.getElementById("profileModal"),
+  closeProfileModalBtn: document.getElementById("closeProfileModalBtn"),
+  profileForm: document.getElementById("profileForm"),
+  profMeName: document.getElementById("profMeName"),
+  profMeEmoji: document.getElementById("profMeEmoji"),
+  profWifeName: document.getElementById("profWifeName"),
+  profWifeEmoji: document.getElementById("profWifeEmoji"),
 
   // Quick Add & Tasks View
   form: document.getElementById("quickAddForm"),
   input: document.getElementById("quickAddInput"),
   searchInput: document.getElementById("taskSearchInput"),
+  groupModeToggleBtn: document.getElementById("groupModeToggleBtn"),
   activeList: document.getElementById("activeTaskList"),
   completedList: document.getElementById("completedTaskList"),
   emptyState: document.getElementById("emptyState"),
@@ -111,6 +152,12 @@ const els = {
   toastContainer: document.getElementById("toastContainer")
 };
 
+function partnerLabel(key) {
+  if (key === "me") return `${state.profile.me_emoji} ${state.profile.me_name}`;
+  if (key === "wife") return `${state.profile.wife_emoji} ${state.profile.wife_name}`;
+  return "💑 Duo";
+}
+
 function applyTheme(theme) {
   state.theme = theme;
   document.documentElement.setAttribute("data-theme", theme);
@@ -126,14 +173,48 @@ function applyIdentity(identity) {
   });
 }
 
-function showToast(message) {
+function renderCoupleBanner() {
+  const p = state.profile;
+  els.idBtnMe.textContent = `${p.me_emoji} ${p.me_name}`;
+  els.idBtnWife.textContent = `${p.wife_emoji} ${p.wife_name}`;
+  els.filterChipMe.textContent = `${p.me_emoji} ${p.me_name}`;
+  els.filterChipWife.textContent = `${p.wife_emoji} ${p.wife_name}`;
+
+  els.loveNoteText.textContent = `💬 ${p.love_note || "Belle journée à deux ✨"}`;
+  els.loveNoteAuthorLabel.textContent = p.love_note_author && p.love_note_author !== "both"
+    ? `— ${partnerLabel(p.love_note_author)}`
+    : "";
+  els.kudosCountBadge.textContent = `❤️ ${p.kudos_count || 0}`;
+
+  const score = state.stats?.extra?.couple_score ?? 0;
+  els.karmaScore.textContent = String(score);
+  els.groupModeToggleBtn.textContent = state.groupedMode ? "Vue : Par échéance" : "Vue : Liste plate";
+}
+
+function showToast(message, actionLabel = null, actionCallback = null) {
   const div = document.createElement("div");
   div.className = "toast";
-  div.textContent = message;
+
+  const span = document.createElement("span");
+  span.textContent = message;
+  div.appendChild(span);
+
+  if (actionLabel && typeof actionCallback === "function") {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "toast-action-btn";
+    btn.textContent = actionLabel;
+    btn.addEventListener("click", () => {
+      div.remove();
+      actionCallback();
+    });
+    div.appendChild(btn);
+  }
+
   els.toastContainer.appendChild(div);
   setTimeout(() => {
     div.remove();
-  }, 2600);
+  }, actionLabel ? 5000 : 2800);
 }
 
 async function apiJson(url, options = {}) {
@@ -163,22 +244,25 @@ async function refreshAll() {
   if (state.searchQuery.trim()) params.set("search", state.searchQuery.trim());
   const qs = params.toString() ? `?${params.toString()}` : "";
 
-  const [filteredTasks, allTasks, staples, stats] = await Promise.all([
+  const [filteredTasks, allTasks, staples, stats, profile] = await Promise.all([
     apiJson(`/api/tasks${qs}`),
     apiJson("/api/tasks"),
     apiJson("/api/groceries/staples"),
-    apiJson("/api/stats")
+    apiJson("/api/stats"),
+    apiJson("/api/couple/profile")
   ]);
 
   state.tasks = filteredTasks;
   state.allTasks = allTasks;
   state.staples = staples;
   state.stats = stats;
+  state.profile = profile;
 
   if (state.packs.length === 0) {
     state.packs = await apiJson("/api/routines/packs");
   }
 
+  renderCoupleBanner();
   renderTasks();
   renderGroceriesView();
   renderRoutinesView();
@@ -190,6 +274,15 @@ async function refreshAll() {
       renderDrawerSubtasks(fresh);
     }
   }
+}
+
+function getBucketKey(task) {
+  const due = (task.due_label || "today").toLowerCase();
+  if (due === "today" || task.priority === 1) return "today";
+  if (due === "tomorrow") return "tomorrow";
+  if (due === "weekend") return "weekend";
+  if (["lundi", "mardi", "mercredi", "jeudi", "vendredi"].includes(due)) return "week";
+  return "later";
 }
 
 function renderTasks() {
@@ -208,7 +301,25 @@ function renderTasks() {
     els.emptyState.classList.remove("hidden");
   } else {
     els.emptyState.classList.add("hidden");
-    active.forEach((task) => els.activeList.appendChild(createTaskElement(task)));
+    if (state.groupedMode) {
+      const grouped = new Map();
+      TEMPORAL_BUCKETS.forEach((b) => grouped.set(b.key, []));
+      active.forEach((task) => grouped.get(getBucketKey(task)).push(task));
+
+      const nonEmptyBuckets = TEMPORAL_BUCKETS.filter((b) => grouped.get(b.key).length > 0);
+      const showHeaders = nonEmptyBuckets.length > 1;
+      nonEmptyBuckets.forEach((bucket) => {
+        if (showHeaders) {
+          const hdr = document.createElement("li");
+          hdr.className = "task-group-header";
+          hdr.textContent = `${bucket.label} (${grouped.get(bucket.key).length})`;
+          els.activeList.appendChild(hdr);
+        }
+        grouped.get(bucket.key).forEach((task) => els.activeList.appendChild(createTaskElement(task)));
+      });
+    } else {
+      active.forEach((task) => els.activeList.appendChild(createTaskElement(task)));
+    }
   }
 
   completed.forEach((task) => els.completedList.appendChild(createTaskElement(task)));
@@ -249,7 +360,7 @@ function createTaskElement(task) {
 
   const meta = document.createElement("div");
   meta.className = "task-meta";
-  meta.appendChild(makeChip(`@${task.assignee}`, "chip-assignee"));
+  meta.appendChild(makeChip(partnerLabel(task.assignee), "chip-assignee"));
   meta.appendChild(makeChip(`#${task.category}`, "chip-category"));
   meta.appendChild(makeChip(task.due_label, "chip-due"));
   if (task.priority < 3) {
@@ -271,6 +382,23 @@ function createTaskElement(task) {
 
   content.appendChild(meta);
 
+  const actionsCol = document.createElement("div");
+  actionsCol.className = "task-actions-col";
+
+  if (!task.completed && task.due_label !== "tomorrow") {
+    const snoozeBtn = document.createElement("button");
+    snoozeBtn.type = "button";
+    snoozeBtn.className = "snooze-btn";
+    snoozeBtn.title = "Reporter à demain";
+    snoozeBtn.setAttribute("aria-label", "Reporter à demain");
+    snoozeBtn.textContent = "🌅";
+    snoozeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      snoozeToTomorrow(task);
+    });
+    actionsCol.appendChild(snoozeBtn);
+  }
+
   const delBtn = document.createElement("button");
   delBtn.type = "button";
   delBtn.className = "delete-btn";
@@ -278,12 +406,13 @@ function createTaskElement(task) {
   delBtn.textContent = "🗑";
   delBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    deleteTask(task.id);
+    deleteTask(task);
   });
+  actionsCol.appendChild(delBtn);
 
   li.appendChild(checkBtn);
   li.appendChild(content);
-  li.appendChild(delBtn);
+  li.appendChild(actionsCol);
   return li;
 }
 
@@ -296,7 +425,6 @@ function renderGroceriesView() {
   els.groceriesBadge.classList.toggle("hidden", activeGroceries.length === 0);
   els.clearGroceriesBtn.classList.toggle("hidden", completedGroceries.length === 0);
 
-  // Render staples grid
   const activeTitles = new Set(activeGroceries.map((t) => t.title.toLowerCase()));
   const filteredStaples = state.staples.filter(
     (s) => state.stapleAisle === "all" || s.aisle === state.stapleAisle
@@ -321,9 +449,7 @@ function renderGroceriesView() {
 
     const sub = document.createElement("div");
     sub.className = "staple-sub";
-    sub.textContent = inCart
-      ? "✓ Dans le panier"
-      : `${staple.default_qty || staple.aisle}`;
+    sub.textContent = inCart ? "✓ Dans le panier" : `${staple.default_qty || staple.aisle}`;
 
     info.appendChild(name);
     info.appendChild(sub);
@@ -333,7 +459,6 @@ function renderGroceriesView() {
     els.staplesGrid.appendChild(btn);
   });
 
-  // Render active & completed groceries grouped by aisle
   els.groceriesByAisle.innerHTML = "";
   if (groceryTasks.length === 0) {
     els.groceriesEmptyState.classList.remove("hidden");
@@ -434,7 +559,6 @@ function renderStatsView() {
   if (!state.stats) return;
   const s = state.stats;
 
-  // KPI cards
   els.kpiGrid.innerHTML = "";
   const kpis = [
     { val: s.total_active, lbl: "À faire" },
@@ -456,13 +580,12 @@ function renderStatsView() {
     els.kpiGrid.appendChild(box);
   });
 
-  // Balance bars
   els.balanceBars.innerHTML = "";
   const totalDone = Math.max(1, (s.completed_by_actor.me || 0) + (s.completed_by_actor.wife || 0) + (s.completed_by_actor.both || 0));
   const actors = [
-    { key: "me", label: "Moi (@me)", cls: "" },
-    { key: "wife", label: "Elle (@wife)", cls: "wife" },
-    { key: "both", label: "Ensemble (@both)", cls: "both" }
+    { key: "me", label: partnerLabel("me"), cls: "" },
+    { key: "wife", label: partnerLabel("wife"), cls: "wife" },
+    { key: "both", label: partnerLabel("both"), cls: "both" }
   ];
   actors.forEach((a) => {
     const active = s.by_assignee[a.key]?.active || 0;
@@ -492,7 +615,6 @@ function renderStatsView() {
     els.balanceBars.appendChild(row);
   });
 
-  // Category bars
   els.categoryBars.innerHTML = "";
   const cats = Object.entries(s.by_category || {});
   if (cats.length === 0) {
@@ -527,7 +649,6 @@ function renderStatsView() {
     });
   }
 
-  // Activity feed
   els.activityFeed.innerHTML = "";
   const actionsMap = {
     created: "a ajouté",
@@ -537,7 +658,9 @@ function renderStatsView() {
     quick_added: "a mis au panier",
     applied_pack: "a appliqué",
     reset_routines: "a réinitialisé",
-    cleared_completed: "a vidé"
+    cleared_completed: "a vidé",
+    kudos: "a envoyé",
+    love_note: "a écrit un mot doux :"
   };
   if (!s.recent_activity || s.recent_activity.length === 0) {
     const li = document.createElement("li");
@@ -549,8 +672,7 @@ function renderStatsView() {
       const li = document.createElement("li");
       li.className = "activity-row";
       const msg = document.createElement("span");
-      const who = entry.actor === "me" ? "Moi" : entry.actor === "wife" ? "Elle" : "Duo";
-      msg.textContent = `${who} ${actionsMap[entry.action] || entry.action} « ${entry.task_title} »`;
+      msg.textContent = `${partnerLabel(entry.actor)} ${actionsMap[entry.action] || entry.action} « ${entry.task_title} »`;
       const tm = document.createElement("span");
       tm.className = "activity-time";
       tm.textContent = entry.created_at ? entry.created_at.slice(11, 16) : "";
@@ -570,7 +692,15 @@ async function toggleTask(task) {
       method: "PATCH",
       body: JSON.stringify({ completed: targetCompleted, completed_by: state.identity })
     });
-    if (targetCompleted) showToast("✓ Tâche terminée !");
+    if (targetCompleted) {
+      showToast("✓ Tâche terminée !", "Annuler", async () => {
+        await apiJson(`/api/tasks/${task.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ completed: false })
+        });
+        await refreshAll();
+      });
+    }
     await refreshAll();
   } catch (err) {
     console.error(err);
@@ -578,11 +708,51 @@ async function toggleTask(task) {
   }
 }
 
-async function deleteTask(taskId) {
+async function snoozeToTomorrow(task) {
+  try {
+    await apiJson(`/api/tasks/${task.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ due_label: "tomorrow" })
+    });
+    showToast(`🌅 « ${task.title} » reportée à demain`);
+    await refreshAll();
+  } catch (err) {
+    console.error(err);
+    showToast("⚠️ Impossible de reporter");
+  }
+}
+
+async function deleteTask(taskOrId) {
+  const snapshot = typeof taskOrId === "object"
+    ? taskOrId
+    : state.allTasks.find((t) => t.id === taskOrId) || { id: taskOrId };
+  const taskId = snapshot.id;
+
   state.tasks = state.tasks.filter((t) => t.id !== taskId);
   renderTasks();
   try {
     await apiJson(`/api/tasks/${taskId}`, { method: "DELETE" });
+    if (snapshot.raw_input || snapshot.title) {
+      showToast("🗑 Tâche supprimée", "Annuler", async () => {
+        await apiJson("/api/tasks", {
+          method: "POST",
+          body: JSON.stringify({
+            raw_input: snapshot.raw_input || snapshot.title,
+            notes: snapshot.notes || "",
+            assignee: snapshot.assignee,
+            category: snapshot.category,
+            priority: snapshot.priority,
+            due_label: snapshot.due_label,
+            recurring: snapshot.recurring,
+            recurrence_rule: snapshot.recurrence_rule,
+            quantity: snapshot.quantity,
+            aisle: snapshot.aisle,
+            subtasks: snapshot.subtasks || []
+          })
+        });
+        await refreshAll();
+      });
+    }
     await refreshAll();
   } catch (err) {
     console.error(err);
@@ -631,7 +801,9 @@ function openTaskDrawer(task) {
   ensureSelectOption(els.editCategory, cat, "#");
   els.editCategory.value = cat;
   els.editPriority.value = String(task.priority || 3);
-  els.editDueLabel.value = task.due_label || "today";
+  const due = task.due_label || "today";
+  ensureSelectOption(els.editDueLabel, due);
+  els.editDueLabel.value = due;
   els.editRecurrence.value = task.recurrence_rule || (task.recurring ? "daily" : "none");
   els.editQuantity.value = task.quantity || "";
   const aisle = task.aisle || "";
@@ -693,7 +865,7 @@ async function updateParsePreview() {
       method: "POST",
       body: JSON.stringify({ raw_input: raw })
     });
-    els.prevAssignee.textContent = `@${parsed.assignee}`;
+    els.prevAssignee.textContent = partnerLabel(parsed.assignee);
     els.prevCategory.textContent = `#${parsed.category}`;
     els.prevDue.textContent = parsed.due_label;
     els.prevPrio.textContent = `P${parsed.priority}`;
@@ -739,6 +911,12 @@ function connectWebSocket() {
       if (payload.event === "sync") {
         await refreshAll();
         refreshHealth();
+      } else if (payload.event === "kudos") {
+        els.sendKudosBtn.classList.remove("pulse");
+        void els.sendKudosBtn.offsetWidth;
+        els.sendKudosBtn.classList.add("pulse");
+        showToast(`💌 ${partnerLabel(payload.from)} : ${payload.message}`);
+        await refreshAll();
       } else if (payload.event === "devices") {
         refreshHealth();
       }
@@ -771,12 +949,97 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 document.querySelectorAll(".id-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     applyIdentity(btn.dataset.identity || "me");
-    showToast(`Identité active : ${btn.textContent}`);
+    showToast(`Téléphone réglé sur ${btn.textContent}`);
   });
 });
 
 els.themeToggleBtn.addEventListener("click", () => {
   applyTheme(state.theme === "dark" ? "light" : "dark");
+});
+
+els.groupModeToggleBtn.addEventListener("click", () => {
+  state.groupedMode = !state.groupedMode;
+  localStorage.setItem("duotasks_grouped", String(state.groupedMode));
+  renderCoupleBanner();
+  renderTasks();
+});
+
+// Couple Banner Events
+els.toggleLoveNoteBtn.addEventListener("click", () => {
+  els.loveNoteForm.classList.toggle("hidden");
+  if (!els.loveNoteForm.classList.contains("hidden")) {
+    els.loveNoteInput.value = state.profile.love_note || "";
+    els.loveNoteInput.focus();
+  }
+});
+
+els.loveNoteForm.addEventListener("submit", async (evt) => {
+  evt.preventDefault();
+  const note = els.loveNoteInput.value.trim();
+  els.loveNoteForm.classList.add("hidden");
+  try {
+    await apiJson("/api/couple/profile", {
+      method: "PATCH",
+      body: JSON.stringify({ love_note: note, love_note_author: state.identity })
+    });
+    showToast("💬 Mot doux publié !");
+    await refreshAll();
+  } catch (err) {
+    console.error(err);
+    showToast("⚠️ Impossible de publier");
+  }
+});
+
+els.sendKudosBtn.addEventListener("click", async () => {
+  els.sendKudosBtn.classList.remove("pulse");
+  void els.sendKudosBtn.offsetWidth;
+  els.sendKudosBtn.classList.add("pulse");
+  try {
+    await apiJson("/api/couple/kudos", {
+      method: "POST",
+      body: JSON.stringify({
+        from_partner: state.identity,
+        message: "Merci pour ce que tu fais aujourd'hui ❤️"
+      })
+    });
+    await refreshAll();
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+els.editProfileBtn.addEventListener("click", () => {
+  els.profMeName.value = state.profile.me_name || "Valentin";
+  els.profMeEmoji.value = state.profile.me_emoji || "🦊";
+  els.profWifeName.value = state.profile.wife_name || "Chérie";
+  els.profWifeEmoji.value = state.profile.wife_emoji || "🌸";
+  els.profileModal.classList.remove("hidden");
+});
+
+els.closeProfileModalBtn.addEventListener("click", () => els.profileModal.classList.add("hidden"));
+els.profileModal.addEventListener("click", (evt) => {
+  if (evt.target === els.profileModal) els.profileModal.classList.add("hidden");
+});
+
+els.profileForm.addEventListener("submit", async (evt) => {
+  evt.preventDefault();
+  try {
+    await apiJson("/api/couple/profile", {
+      method: "PATCH",
+      body: JSON.stringify({
+        me_name: els.profMeName.value.trim(),
+        me_emoji: els.profMeEmoji.value.trim() || "🦊",
+        wife_name: els.profWifeName.value.trim(),
+        wife_emoji: els.profWifeEmoji.value.trim() || "🌸"
+      })
+    });
+    els.profileModal.classList.add("hidden");
+    showToast("💑 Prénoms enregistrés");
+    await refreshAll();
+  } catch (err) {
+    console.error(err);
+    showToast("⚠️ Erreur de mise à jour");
+  }
 });
 
 els.form.addEventListener("submit", async (evt) => {
@@ -985,7 +1248,6 @@ els.drawerDeleteBtn.addEventListener("click", async () => {
   const id = Number(els.editTaskId.value);
   closeTaskDrawer();
   await deleteTask(id);
-  showToast("🗑 Tâche supprimée");
 });
 
 // Install Modal

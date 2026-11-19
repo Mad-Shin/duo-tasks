@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>DuoTasks — Tâches, Courses &amp; Routines Couple</title>
+  <title>DuoTasks — Tâches, Courses &amp; Moments à Deux</title>
 
   <!-- PWA & Home Screen App Meta (Android + iPhone Safari) -->
   <link rel="manifest" href="/manifest.json" />
@@ -29,8 +29,8 @@
 
       <div class="topbar-actions">
         <div class="identity-switch" role="group" aria-label="Qui utilise ce téléphone">
-          <button type="button" class="id-btn active" data-identity="me">Moi</button>
-          <button type="button" class="id-btn" data-identity="wife">Elle</button>
+          <button type="button" class="id-btn active" id="idBtnMe" data-identity="me">🦊 Moi</button>
+          <button type="button" class="id-btn" id="idBtnWife" data-identity="wife">🌸 Elle</button>
         </div>
         <div class="sync-pill" id="syncPill" title="Synchronisation WebSocket temps réel">
           <span class="sync-dot" id="syncDot"></span>
@@ -44,6 +44,31 @@
         </button>
       </div>
     </header>
+
+    <!-- Cozy Couple Banner -->
+    <section class="couple-banner" aria-label="Espace couple">
+      <div class="couple-note-row">
+        <div class="love-note-display">
+          <span class="love-note-quote" id="loveNoteText">💬 On fait quoi de beau ce soir ? ✨</span>
+          <span class="love-note-meta" id="loveNoteAuthorLabel"></span>
+        </div>
+        <button type="button" class="btn-mini-ghost" id="toggleLoveNoteBtn" title="Modifier le mot doux">✏️ Mot doux</button>
+      </div>
+
+      <form id="loveNoteForm" class="love-note-form hidden" autocomplete="off">
+        <input type="text" id="loveNoteInput" placeholder="Un petit mot pour l'autre..." maxlength="200" />
+        <button type="submit" class="btn-small">Publier</button>
+      </form>
+
+      <div class="couple-actions-row">
+        <button type="button" class="btn-kudos" id="sendKudosBtn">
+          <span>💌 Merci</span>
+          <span class="kudos-count" id="kudosCountBadge">❤️ 0</span>
+        </button>
+        <span class="karma-pill" id="karmaPill">✨ Karma Duo : <strong id="karmaScore">0</strong> pts</span>
+        <button type="button" class="btn-mini-ghost" id="editProfileBtn">⚙️ Prénoms</button>
+      </div>
+    </section>
 
     <nav class="tab-nav" aria-label="Navigation principale">
       <button type="button" class="tab-btn active" data-tab="tasks">
@@ -73,7 +98,7 @@
             <input
               type="text"
               id="quickAddInput"
-              placeholder="Ex: Lait 2L demain @wife #courses !1"
+              placeholder="Ex: Resto vendredi 20h @both #date !2 ou Lait 2L @wife #courses"
               maxlength="280"
               required
             />
@@ -86,7 +111,8 @@
             <button type="button" class="shortcut-btn" data-token="@both">@both</button>
             <button type="button" class="shortcut-btn" data-token="#courses">#courses</button>
             <button type="button" class="shortcut-btn" data-token="#maison">#maison</button>
-            <button type="button" class="shortcut-btn" data-token="#daily">#daily</button>
+            <button type="button" class="shortcut-btn" data-token="#date">🥂 #date</button>
+            <button type="button" class="shortcut-btn" data-token="#cadeaux">🎁 #cadeaux</button>
             <button type="button" class="shortcut-btn" data-token="demain">demain</button>
             <button type="button" class="shortcut-btn" data-token="weekend">weekend</button>
             <button type="button" class="shortcut-btn" data-token="tous les jours">🔁 quotidien</button>
@@ -107,17 +133,19 @@
       </section>
 
       <div class="search-bar-row">
-        <input type="search" id="taskSearchInput" placeholder="🔍 Rechercher une tâche, note ou #tag..." />
+        <input type="search" id="taskSearchInput" placeholder="🔍 Rechercher une tâche, note, #date ou #courses..." />
       </div>
 
       <nav class="filters" aria-label="Filtres couple">
         <button type="button" class="filter-chip active" data-filter-type="all" data-filter-value="all">Tous</button>
-        <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="me">Moi (@me)</button>
-        <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="wife">Elle (@wife)</button>
-        <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="both">Ensemble</button>
+        <button type="button" class="filter-chip" id="filterChipMe" data-filter-type="assignee" data-filter-value="me">🦊 Moi</button>
+        <button type="button" class="filter-chip" id="filterChipWife" data-filter-type="assignee" data-filter-value="wife">🌸 Elle</button>
+        <button type="button" class="filter-chip" data-filter-type="assignee" data-filter-value="both">💑 Duo</button>
         <button type="button" class="filter-chip" data-filter-type="due" data-filter-value="today">Aujourd'hui</button>
         <button type="button" class="filter-chip" data-filter-type="due" data-filter-value="tomorrow">Demain</button>
         <button type="button" class="filter-chip" data-filter-type="due" data-filter-value="weekend">Week-end</button>
+        <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="date">🥂 #date</button>
+        <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="cadeaux">🎁 #cadeaux</button>
         <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="maison">#maison</button>
         <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="courses">#courses</button>
         <button type="button" class="filter-chip" data-filter-type="category" data-filter-value="daily">#daily</button>
@@ -125,12 +153,13 @@
 
       <main class="task-sections">
         <section aria-labelledby="activeHeading">
-          <div class="section-header">
+          <div class="section-header section-header-row">
             <h2 id="activeHeading">À faire</h2>
+            <button type="button" class="btn-mini-ghost" id="groupModeToggleBtn">Vue : Par échéance</button>
           </div>
           <ul class="task-list" id="activeTaskList"></ul>
           <div class="empty-state hidden" id="emptyState">
-            Rien en attente ici. Ajoute une tâche ci-dessus avec <code>@wife</code> ou <code>#courses</code>, ou applique un pack dans <strong>Routines</strong>.
+            Rien en attente ici. Ajoute une tâche ci-dessus ou lance un pack <strong>🥂 Date Night &amp; Apéro</strong> dans <strong>Routines</strong>.
           </div>
         </section>
 
@@ -153,11 +182,11 @@
         <div class="card-head">
           <div>
             <h2>🛒 Ajout Rapide Courses</h2>
-            <p class="muted-text">Tape un article (ex: <code>Saumon 2 pavés !1</code>) ou clique sur un favori ci-dessous.</p>
+            <p class="muted-text">Tape un article (ex: <code>Burrata x2 !1</code>) ou clique sur un favori ci-dessous.</p>
           </div>
         </div>
         <form id="groceryQuickForm" class="input-row" autocomplete="off">
-          <input type="text" id="groceryQuickInput" placeholder="Ajouter au panier (ex: Avocats x2)..." maxlength="200" required />
+          <input type="text" id="groceryQuickInput" placeholder="Ajouter au panier (ex: Avocats x2, Vin blanc)..." maxlength="200" required />
           <button type="submit" class="btn-primary">+ Panier</button>
         </form>
       </div>
@@ -192,7 +221,7 @@
           <button type="button" class="filter-chip" data-aisle="Boulangerie">🥖 Boulangerie</button>
           <button type="button" class="filter-chip" data-aisle="Viande & Poisson">🍗 Viande/Poiss.</button>
           <button type="button" class="filter-chip" data-aisle="Épicerie">🍝 Épicerie</button>
-          <button type="button" class="filter-chip" data-aisle="Boissons">💧 Boissons</button>
+          <button type="button" class="filter-chip" data-aisle="Boissons">🥂 Boissons</button>
           <button type="button" class="filter-chip" data-aisle="Maison & Hygiène">🧻 Hygiène</button>
         </div>
 
@@ -275,16 +304,16 @@
 
         <label class="field-group">
           <span>Notes / Précisions</span>
-          <textarea id="editNotes" rows="2" maxlength="2000" placeholder="Marque préférée, adresse, remarque..."></textarea>
+          <textarea id="editNotes" rows="2" maxlength="2000" placeholder="Marque préférée, adresse du resto, remarque..."></textarea>
         </label>
 
         <div class="field-grid">
           <label class="field-group">
             <span>Assigné à</span>
             <select id="editAssignee">
-              <option value="both">Ensemble (@both)</option>
-              <option value="me">Moi (@me)</option>
-              <option value="wife">Elle (@wife)</option>
+              <option value="both">💑 Nous deux (@both)</option>
+              <option value="me">🦊 Moi (@me)</option>
+              <option value="wife">🌸 Elle (@wife)</option>
             </select>
           </label>
           <label class="field-group">
@@ -294,6 +323,9 @@
               <option value="courses">#courses</option>
               <option value="maison">#maison</option>
               <option value="daily">#daily</option>
+              <option value="date">🥂 #date</option>
+              <option value="cadeaux">🎁 #cadeaux</option>
+              <option value="projets">🏡 #projets</option>
               <option value="weekend">#weekend</option>
               <option value="admin">#admin</option>
             </select>
@@ -313,6 +345,11 @@
               <option value="tomorrow">Demain</option>
               <option value="weekend">Week-end</option>
               <option value="later">Plus tard</option>
+              <option value="lundi">Lundi</option>
+              <option value="mardi">Mardi</option>
+              <option value="mercredi">Mercredi</option>
+              <option value="jeudi">Jeudi</option>
+              <option value="vendredi">Vendredi</option>
             </select>
           </label>
           <label class="field-group">
@@ -356,6 +393,40 @@
 
         <div class="drawer-footer">
           <button type="button" class="btn-danger" id="drawerDeleteBtn">Supprimer</button>
+          <button type="submit" class="btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Couple Profile Customization Modal -->
+  <div class="modal-backdrop hidden" id="profileModal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="profileModalTitle">Personnaliser votre Duo 💑</h3>
+        <button type="button" class="btn-close" id="closeProfileModalBtn" aria-label="Fermer">✕</button>
+      </div>
+      <form id="profileForm" class="drawer-form">
+        <div class="field-grid">
+          <label class="field-group">
+            <span>Prénom (@me)</span>
+            <input type="text" id="profMeName" maxlength="32" required />
+          </label>
+          <label class="field-group">
+            <span>Emoji (@me)</span>
+            <input type="text" id="profMeEmoji" maxlength="8" required />
+          </label>
+          <label class="field-group">
+            <span>Prénom (@wife)</span>
+            <input type="text" id="profWifeName" maxlength="32" required />
+          </label>
+          <label class="field-group">
+            <span>Emoji (@wife)</span>
+            <input type="text" id="profWifeEmoji" maxlength="8" required />
+          </label>
+        </div>
+        <div class="drawer-footer">
+          <span class="muted-text">Synchro sur les deux téléphones</span>
           <button type="submit" class="btn-primary">Enregistrer</button>
         </div>
       </form>

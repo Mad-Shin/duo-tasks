@@ -38,6 +38,10 @@ DEFAULT_GROCERY_STAPLES: list[tuple[str, str, str, str]] = [
     ("Café en grains / moulu", "Épicerie", "250g", "☕"),
     ("Huile d'olive", "Épicerie", "1L", "🫒"),
     ("Eau / Pack", "Boissons", "x6", "💧"),
+    ("Vin blanc / Apéro", "Boissons", "1 bout.", "🥂"),
+    ("Bières artisanales", "Boissons", "x4", "🍺"),
+    ("Burrata / Comté", "Frais & Laitier", "x1", "🧀"),
+    ("Chocolat noir 70%", "Épicerie", "1 tab.", "🍫"),
     ("Papier toilette", "Maison & Hygiène", "x12", "🧻"),
     ("Lessive liquide", "Maison & Hygiène", "1 bidon", "🧺"),
 ]
@@ -173,10 +177,25 @@ def init_db() -> None:
         )
         """
 
+        profile_ddl = """
+        CREATE TABLE IF NOT EXISTS couple_profile (
+            id INTEGER PRIMARY KEY,
+            me_name TEXT NOT NULL DEFAULT 'Valentin',
+            me_emoji TEXT NOT NULL DEFAULT '🦊',
+            wife_name TEXT NOT NULL DEFAULT 'Chérie',
+            wife_emoji TEXT NOT NULL DEFAULT '🌸',
+            love_note TEXT NOT NULL DEFAULT 'On fait quoi de beau ce soir ? ✨',
+            love_note_author TEXT NOT NULL DEFAULT 'both',
+            kudos_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL DEFAULT ''
+        )
+        """
+
         cur = conn.cursor()
         cur.execute(tasks_ddl)
         cur.execute(staples_ddl)
         cur.execute(activity_ddl)
+        cur.execute(profile_ddl)
 
         # Idempotent migrations for pre-existing databases
         migrations: list[tuple[str, str]] = [
@@ -194,18 +213,31 @@ def init_db() -> None:
         for col_name, col_def in migrations:
             _safe_add_column(cur, mode, "tasks", col_name, col_def)
 
-        # Seed default grocery staples once
-        cur.execute("SELECT COUNT(*) AS cnt FROM grocery_staples")
-        count_row = cur.fetchone()
-        cnt = int(count_row["cnt"] if isinstance(count_row, dict) or hasattr(count_row, "keys") else count_row[0])
-        if cnt == 0:
-            ph = placeholder(mode)
-            for name, aisle, qty, emoji in DEFAULT_GROCERY_STAPLES:
+        # Seed default grocery staples idempotently
+        cur.execute("SELECT name FROM grocery_staples")
+        existing_names = {
+            str(r["name"] if isinstance(r, dict) or hasattr(r, "keys") else r[0]).lower()
+            for r in cur.fetchall()
+        }
+        ph = placeholder(mode)
+        for name, aisle, qty, emoji in DEFAULT_GROCERY_STAPLES:
+            if name.lower() not in existing_names:
                 cur.execute(
                     f"INSERT INTO grocery_staples (name, aisle, default_qty, emoji, usage_count) "
                     f"VALUES ({ph}, {ph}, {ph}, {ph}, 0)",
                     (name, aisle, qty, emoji),
                 )
+
+        # Seed couple_profile row id=1 if missing
+        cur.execute("SELECT COUNT(*) AS cnt FROM couple_profile")
+        prof_row = cur.fetchone()
+        prof_cnt = int(prof_row["cnt"] if isinstance(prof_row, dict) or hasattr(prof_row, "keys") else prof_row[0])
+        if prof_cnt == 0:
+            cur.execute(
+                f"INSERT INTO couple_profile (id, me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, updated_at) "
+                f"VALUES (1, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph})",
+                ("Valentin", "🦊", "Chérie", "🌸", "On fait quoi de beau ce soir ? ✨", "both", ""),
+            )
 
         cur.close()
 

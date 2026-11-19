@@ -142,3 +142,28 @@ class CoupleStatsOut(BaseModel):
     by_category: dict[str, dict[str, int]]
     recent_activity: list[ActivityEntryOut]
     extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class CoupleProfileOut(BaseModel):
+    me_name: str
+    me_emoji: str
+    wife_name: str
+    wife_emoji: str
+    love_note: str
+    love_note_author: str
+    kudos_count: int
+    updated_at: str = ""
+
+
+class CoupleProfileUpdate(BaseModel):
+    me_name: Optional[str] = Field(default=None, min_length=1, max_length=32)
+    me_emoji: Optional[str] = Field(default=None, min_length=1, max_length=8)
+    wife_name: Optional[str] = Field(default=None, min_length=1, max_length=32)
+    wife_emoji: Optional[str] = Field(default=None, min_length=1, max_length=8)
+    love_note: Optional[str] = Field(default=None, max_length=200)
+    love_note_author: Optional[str] = Field(default=None, max_length=20)
+
+
+class KudosRequest(BaseModel):
+    from_partner: str = Field(default="me", max_length=20)
+    message: str = Field(default="Merci mon cœur ❤️", min_length=1, max_length=160)

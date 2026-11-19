@@ -1,32 +1,36 @@
 :root {
-  --bg: #faf9f7;
+  --bg: #fbf8f5;
   --card: #ffffff;
-  --surface-alt: #f4f2ee;
-  --text: #1f2328;
-  --muted: #656d76;
-  --border: #e5e2dc;
+  --surface-alt: #f6f1ec;
+  --text: #231f20;
+  --muted: #6c6563;
+  --border: #eadfd7;
   --brand: #dc4c3e;
   --brand-hover: #c53c2f;
   --brand-soft: rgba(220, 76, 62, 0.12);
+  --rose: #d94670;
+  --rose-soft: rgba(217, 70, 112, 0.12);
   --p1: #d1453b;
   --p2: #eb8909;
   --p3: #80868b;
   --ok: #1a9e52;
   --warn: #d97706;
-  --shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+  --shadow: 0 3px 14px rgba(105, 58, 42, 0.06);
 }
 
 html[data-theme="dark"] {
-  --bg: #121417;
-  --card: #1b1f24;
-  --surface-alt: #252a31;
-  --text: #eceff4;
-  --muted: #9aa4b2;
-  --border: #2e343d;
+  --bg: #131214;
+  --card: #1d1b1e;
+  --surface-alt: #272429;
+  --text: #f3eee9;
+  --muted: #a69d99;
+  --border: #332e35;
   --brand: #ef5b4d;
   --brand-hover: #dc4c3e;
   --brand-soft: rgba(239, 91, 77, 0.18);
-  --shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  --rose: #f47296;
+  --rose-soft: rgba(244, 114, 150, 0.18);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.38);
 }
 
 * {
@@ -145,6 +149,152 @@ html, body {
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* Cozy Couple Banner */
+.couple-banner {
+  background: linear-gradient(135deg, var(--card) 0%, var(--surface-alt) 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.couple-note-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.love-note-display {
+  min-width: 0;
+  flex: 1;
+}
+
+.love-note-quote {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.love-note-meta {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.love-note-form {
+  display: flex;
+  gap: 8px;
+}
+
+.couple-actions-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn-kudos {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(217, 70, 112, 0.35);
+  background: var(--rose-soft);
+  color: var(--rose);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.btn-kudos:active {
+  transform: scale(0.95);
+}
+
+.btn-kudos.pulse {
+  animation: heartPop 0.45s ease;
+}
+
+@keyframes heartPop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+.kudos-count {
+  background: var(--card);
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+}
+
+.karma-pill {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-right: auto;
+}
+
+.btn-mini-ghost {
+  padding: 4px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-mini-ghost:hover {
+  color: var(--text);
+  border-color: var(--brand);
+}
+
+.section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.task-group-header {
+  list-style: none;
+  font-size: 0.77rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 8px 4px 2px;
+}
+
+.task-actions-col {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.snooze-btn {
+  min-width: 32px;
+  min-height: 32px;
+  border: none;
+  background: transparent;
+  font-size: 0.92rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.snooze-btn:hover {
+  background: var(--surface-alt);
 }
 
 /* Navigation Tabs (Top pill bar on desktop, fixed bottom bar on mobile) */
@@ -894,6 +1044,10 @@ input[type="text"]:focus, input[type="search"]:focus, textarea:focus, select:foc
 }
 
 .toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
   background: #1f2328;
   color: #ffffff;
   padding: 9px 14px;
@@ -901,4 +1055,15 @@ input[type="text"]:focus, input[type="search"]:focus, textarea:focus, select:foc
   font-size: 0.82rem;
   font-weight: 600;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.toast-action-btn {
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffd166;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
 }

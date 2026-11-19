@@ -17,9 +17,12 @@ from fastapi.staticfiles import StaticFiles
 
 from .database import get_connection, get_database_url, get_db_mode, init_db, placeholder, row_to_task_dict
 from .models import (
+    CoupleProfileOut,
+    CoupleProfileUpdate,
     CoupleStatsOut,
     GroceryStapleCreate,
     GroceryStapleOut,
+    KudosRequest,
     ParsePreviewOut,
     ParsePreviewRequest,
     RoutinePackOut,
@@ -95,6 +98,18 @@ ROUTINE_PACKS: list[dict[str, Any]] = [
             "Arroser les plantes avant le départ @wife #maison !2",
             "Vider frigo périssable et poubelles @me #maison !2",
             "Fermer volets et couper eau / gaz @both #maison !1",
+        ],
+    },
+    {
+        "id": "date-night-apero",
+        "name": "Soirée Date Night & Apéro",
+        "description": "Le kit couple pour déconnecter à deux après la semaine.",
+        "emoji": "🥂",
+        "tasks": [
+            "Prendre une bonne bouteille de vin et burrata @me #courses !2",
+            "Choisir le film ou réserver le petit resto @wife #date !2",
+            "Mettre la playlist & allumer les bougies @both #date !3",
+            "Zéro écran pro après 20h @both #date !1",
         ],
     },
 ]
@@ -780,6 +795,95 @@ async def quick_add_grocery_staple(staple_id: int) -> dict[str, Any]:
     return task
 
 
+# --- Couple Profile, Love Note & Kudos ---
+
+
+@app.get("/api/couple/profile", response_model=CoupleProfileOut)
+def get_couple_profile() -> dict[str, Any]:
+    ensure_db_ready()
+    with get_connection() as (conn, _):
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, updated_at "
+            "FROM couple_profile WHERE id = 1"
+        )
+        row = cur.fetchone()
+        cur.close()
+    if row is None:
+        return {
+            "me_name": "Valentin",
+            "me_emoji": "🦊",
+            "wife_name": "Chérie",
+            "wife_emoji": "🌸",
+            "love_note": "On fait quoi de beau ce soir ? ✨",
+            "love_note_author": "both",
+            "kudos_count": 0,
+            "updated_at": "",
+        }
+    return dict(row)
+
+
+@app.patch("/api/couple/profile", response_model=CoupleProfileOut)
+async def update_couple_profile(payload: CoupleProfileUpdate) -> dict[str, Any]:
+    ensure_db_ready()
+    updates = payload.model_dump(exclude_unset=True)
+    with get_connection() as (conn, mode):
+        ph = placeholder(mode)
+        assignments: list[str] = []
+        params: list[Any] = []
+        now = _utc_now()
+
+        for field in ("me_name", "me_emoji", "wife_name", "wife_emoji", "love_note", "love_note_author"):
+            if field in updates and updates[field] is not None:
+                val = updates[field].strip()
+                if field == "love_note_author":
+                    val = normalize_assignee(val)
+                assignments.append(f"{field} = {ph}")
+                params.append(val)
+
+        if assignments:
+            assignments.append(f"updated_at = {ph}")
+            params.append(now)
+            cur = conn.cursor()
+            cur.execute(f"UPDATE couple_profile SET {', '.join(assignments)} WHERE id = 1", tuple(params))
+            if "love_note" in updates and updates["love_note"] is not None:
+                author = normalize_assignee(updates.get("love_note_author")) if updates.get("love_note_author") else "both"
+                _log_activity(conn, mode, author, "love_note", updates["love_note"].strip() or "Mot doux mis à jour", "couple")
+            cur.close()
+
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT me_name, me_emoji, wife_name, wife_emoji, love_note, love_note_author, kudos_count, updated_at "
+            "FROM couple_profile WHERE id = 1"
+        )
+        profile = dict(cur.fetchone())
+        cur.close()
+
+    await manager.broadcast({"event": "sync", "action": "profile_updated"})
+    return profile
+
+
+@app.post("/api/couple/kudos")
+async def send_couple_kudos(payload: KudosRequest) -> dict[str, Any]:
+    ensure_db_ready()
+    actor = normalize_assignee(payload.from_partner)
+    msg = payload.message.strip() or "Merci mon cœur ❤️"
+    now = _utc_now()
+
+    with get_connection() as (conn, mode):
+        ph = placeholder(mode)
+        cur = conn.cursor()
+        cur.execute(f"UPDATE couple_profile SET kudos_count = kudos_count + 1, updated_at = {ph} WHERE id = 1", (now,))
+        cur.execute("SELECT kudos_count FROM couple_profile WHERE id = 1")
+        row = cur.fetchone()
+        new_count = int(row["kudos_count"]) if row else 1
+        cur.close()
+        _log_activity(conn, mode, actor, "kudos", msg, "couple")
+
+    await manager.broadcast({"event": "kudos", "from": actor, "message": msg, "kudos_count": new_count})
+    return {"kudos_count": new_count, "message": msg, "from": actor}
+
+
 # --- Couple Balance & Activity Analytics ---
 
 
@@ -793,6 +897,10 @@ def get_couple_stats() -> dict[str, Any]:
 
         cur.execute("SELECT id, actor, action, task_title, category, created_at FROM activity_log ORDER BY id DESC LIMIT 15")
         recent_activity = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("SELECT kudos_count FROM couple_profile WHERE id = 1")
+        prof_row = cur.fetchone()
+        kudos_count = int(prof_row["kudos_count"]) if prof_row else 0
         cur.close()
 
     by_assignee: dict[str, dict[str, int]] = {
@@ -833,6 +941,7 @@ def get_couple_stats() -> dict[str, Any]:
             if cat == "courses":
                 courses_active += 1
 
+    couple_score = total_completed * 10 + kudos_count * 15
     return {
         "total_active": total_active,
         "total_completed": total_completed,
@@ -843,7 +952,11 @@ def get_couple_stats() -> dict[str, Any]:
         "completed_by_actor": completed_by_actor,
         "by_category": by_category,
         "recent_activity": recent_activity,
-        "extra": {"connected_devices": len(manager.active_connections)},
+        "extra": {
+            "connected_devices": len(manager.active_connections),
+            "kudos_count": kudos_count,
+            "couple_score": couple_score,
+        },
     }
 
 
