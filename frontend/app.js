@@ -18,7 +18,7 @@ const SVG_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const state = {
   composerMode: "task",
   identity: localStorage.getItem("duotasks_identity") || "me",
-  theme: localStorage.getItem("duotasks_theme") || "light",
+  theme: localStorage.getItem("duotasks_theme_v2") || "dark",
   profile: {
     me_name: "Valentin",
     wife_name: "Lisa"
@@ -198,7 +198,7 @@ function buildGoogleCalendarUrl(task) {
 function applyTheme(theme) {
   state.theme = theme;
   document.documentElement.setAttribute("data-theme", theme);
-  localStorage.setItem("duotasks_theme", theme);
+  localStorage.setItem("duotasks_theme_v2", theme);
 }
 
 function applyIdentity(identity) {
