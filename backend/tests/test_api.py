@@ -623,19 +623,46 @@ class TestTasksAPIAndPWA(unittest.TestCase):
             self.assertEqual(r_set.status_code, 200)
             self.assertEqual(r_set.json()["joint_filter_keyword"], "Compte joint")
 
-            # Personal notification ignored & logged
+            # Personal notification dropped BEFORE saving anything (zero DB/API trace)
             r_ign = self.client.post(
                 "/api/budget/webhook/revolut",
                 headers={"X-Webhook-Secret": "top-secret-99"},
                 json={
-                    "title": "Starbucks",
-                    "text": "Vous avez payé 6,50 € chez Starbucks",
+                    "title": "Starbucks Perso",
+                    "text": "Vous avez payé 6,50 € chez Starbucks Perso",
                     "timestamp": "2026-11-20T09:20:00Z",
                 },
             )
             self.assertEqual(r_ign.status_code, 200)
-            self.assertEqual(r_ign.json()["status"], "ignored")
+            self.assertEqual(r_ign.json()["status"], "dropped")
             self.assertEqual(r_ign.json()["reason"], "keyword_mismatch")
+
+            # Sensitive alerts (login OTP codes & 3DS prompts) dropped BEFORE saving anything
+            r_otp = self.client.post(
+                "/api/budget/webhook/revolut",
+                headers={"X-Webhook-Secret": "top-secret-99"},
+                json={
+                    "title": "Revolut",
+                    "text": "Votre code de connexion Revolut est 482910. Ne le partagez jamais.",
+                    "timestamp": "2026-11-20T09:21:00Z",
+                },
+            )
+            self.assertEqual(r_otp.status_code, 200)
+            self.assertEqual(r_otp.json()["status"], "dropped")
+            self.assertEqual(r_otp.json()["reason"], "sensitive_alert")
+
+            r_3ds = self.client.post(
+                "/api/budget/webhook/revolut",
+                headers={"X-Webhook-Secret": "top-secret-99"},
+                json={
+                    "title": "Compte joint",
+                    "text": "Confirmez votre paiement 3D Secure de 89,00 € chez AmazonSecret",
+                    "timestamp": "2026-11-20T09:22:00Z",
+                },
+            )
+            self.assertEqual(r_3ds.status_code, 200)
+            self.assertEqual(r_3ds.json()["status"], "dropped")
+            self.assertEqual(r_3ds.json()["reason"], "sensitive_alert")
 
             # Joint incoming refill applied
             r_in = self.client.post(
@@ -652,12 +679,30 @@ class TestTasksAPIAndPWA(unittest.TestCase):
             self.assertEqual(r_in.json()["kind"], "refill")
             self.assertEqual(r_in.json()["balance_cents"], 38160)
 
-            # Verify logs recorded (without secret) & webhook_configured=True
+            # SecOps DLP verification: ZERO raw notification text, ZERO OTP/3DS/personal traces in API or SQLite DB
             r_ov = self.client.get("/api/budget")
             ov = r_ov.json()
             self.assertTrue(ov["webhook_configured"])
-            self.assertGreaterEqual(len(ov["webhook_logs"]), 3)
-            self.assertNotIn("top-secret-99", json.dumps(ov))
+            self.assertEqual(len(ov["webhook_logs"]), 2)  # Only the 2 applied joint transactions
+            dumped_ov = json.dumps(ov)
+            self.assertNotIn("top-secret-99", dumped_ov)
+            self.assertNotIn("482910", dumped_ov)
+            self.assertNotIn("AmazonSecret", dumped_ov)
+            self.assertNotIn("Starbucks Perso", dumped_ov)
+            self.assertNotIn("Vous avez payé", dumped_ov)
+            self.assertNotIn("Vous avez reçu", dumped_ov)
+            for tx in ov["transactions"]:
+                self.assertNotIn("raw_text", tx)
+            for log_item in ov["webhook_logs"]:
+                self.assertNotIn("title", log_item)
+                self.assertNotIn("text", log_item)
+
+            # Inspect raw SQLite file directly to confirm ZERO persistence of dropped/raw text
+            raw_db_bytes = (Path(self._tmp.name) / "test_duo_tasks.db").read_bytes()
+            self.assertNotIn(b"482910", raw_db_bytes)
+            self.assertNotIn(b"AmazonSecret", raw_db_bytes)
+            self.assertNotIn(b"Starbucks Perso", raw_db_bytes)
+            self.assertNotIn(b"Vous avez pay", raw_db_bytes)
         finally:
             if prev_secret is None:
                 os.environ.pop("REVOLUT_WEBHOOK_SECRET", None)

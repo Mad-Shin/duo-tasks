@@ -636,10 +636,14 @@ function renderMacrodroidModal() {
 
     const st = document.createElement("span");
     st.className = `macro-log-status ${entry.status === "applied" ? "applied" : "ignored"}`;
+    const signAmt =
+      entry.parsed_kind === "refill"
+        ? formatCentsFr(Math.abs(entry.parsed_amount_cents || 0), true)
+        : formatCentsFr(-Math.abs(entry.parsed_amount_cents || 0));
     st.textContent =
       entry.status === "applied"
-        ? `Appliqué · ${formatCentsFr(entry.parsed_amount_cents)}`
-        : `Ignoré${entry.reason ? ` (${entry.reason})` : ""}`;
+        ? `Appliqué · ${signAmt}`
+        : `Filtré${entry.reason ? ` (${entry.reason})` : ""}`;
 
     const dt = document.createElement("span");
     dt.className = "subtitle";
@@ -648,12 +652,12 @@ function renderMacrodroidModal() {
     top.appendChild(st);
     top.appendChild(dt);
 
-    const raw = document.createElement("div");
-    raw.className = "macro-log-raw";
-    raw.textContent = [entry.title, entry.text].filter(Boolean).join(" — ") || "(vide)";
+    const summary = document.createElement("div");
+    summary.className = "macro-log-raw";
+    summary.textContent = entry.parsed_merchant || (entry.parsed_kind === "refill" ? "Rechargement" : "Paiement");
 
     li.appendChild(top);
-    li.appendChild(raw);
+    li.appendChild(summary);
     els.macrodroidLogsList.appendChild(li);
   });
 }

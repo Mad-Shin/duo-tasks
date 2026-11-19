@@ -1,9 +1,12 @@
 """
-Deterministic Revolut push-notification parser (FR / EN) for DuoTasks.
+Deterministic Revolut push-notification parser (FR / EN) with strict SecOps DLP.
 
-Extracts integer cents, currency, direction (expense vs refill), and merchant
-label from Android MacroDroid notification payloads, while safely ignoring
-declined payments, authentication prompts, promos, and non-matching accounts.
+Security contract:
+- Sensitive alerts (login/OTP/2FA codes, 3DS approval prompts, PIN/passcode/
+  security/device alerts) and personal-account notifications failing the joint
+  keyword filter MUST be marked `drop_silently=True` so the server drops them
+  immediately without persisting ANY text, log, or metadata.
+- Raw notification text is NEVER returned for persistence.
 """
 
 from __future__ import annotations
@@ -15,7 +18,67 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-# Declined / failed / security prompts that may contain an amount and MUST be ignored
+# Security / auth / 3DS / OTP patterns — MUST be dropped silently before any DB write
+SENSITIVE_ALERT_PATTERNS: tuple[str, ...] = (
+    "code de connexion",
+    "code de securite",
+    "code de verification",
+    "code pin",
+    "login code",
+    "security code",
+    "verification code",
+    "passcode",
+    "mot de passe",
+    "one-time",
+    "one time",
+    "otp",
+    "2fa",
+    "3d secure",
+    "3-d secure",
+    "3ds",
+    "approuvez",
+    "approuver",
+    "approve",
+    "confirmez votre",
+    "confirmer votre",
+    "confirm your",
+    "confirm payment",
+    "verifiez votre",
+    "verify your",
+    "autorisez",
+    "authorize",
+    "authorise",
+    "authentif",
+    "nouvel appareil",
+    "new device",
+    "se connecter",
+    "connexion detectee",
+    "sign in",
+    "log in",
+    "login attempt",
+    "magic link",
+    "lien de connexion",
+    "cvv",
+    "cvc",
+    "carte gelee",
+    "card frozen",
+    "activite suspecte",
+    "suspicious",
+    "fraude",
+    "fraud",
+    "reinitialis",
+    "reset your",
+    "identite",
+    "identity",
+)
+
+# Standalone OTP / login code pattern (e.g. "code: 482910" or "849-201")
+OTP_CODE_REGEX = re.compile(
+    r"(?:\bcode\b[^0-9]{0,16}\d{4,8}\b|\b\d{3}[-\s]\d{3}\b)",
+    re.IGNORECASE,
+)
+
+# Declined / failed payment notifications (non-sensitive, but must not affect balance)
 IGNORED_DECLINED_PATTERNS: tuple[str, ...] = (
     "refuse",
     "echoue",
@@ -28,21 +91,8 @@ IGNORED_DECLINED_PATTERNS: tuple[str, ...] = (
     "canceled",
     "cancelled",
     "reverted",
-    "carte gelee",
-    "card frozen",
     "bloque",
     "blocked",
-    "approuvez",
-    "approve",
-    "confirmez",
-    "confirm your",
-    "verifiez",
-    "verify your",
-    "code de securite",
-    "security code",
-    "3d secure",
-    "otp",
-    "code pin",
 )
 
 IGNORED_PROMO_PATTERNS: tuple[str, ...] = (
@@ -148,7 +198,6 @@ CURRENCY_MAP: dict[str, str] = {
     "chf": "CHF",
 }
 
-# Match either prefix currency (`-€12.50`, `+€200`, `$14.99`) or suffix currency (`-12,50 €`, `1 250,00 EUR`)
 AMOUNT_REGEX = re.compile(
     r"(?P<sign>[+\-−])?\s*"
     r"(?:"
@@ -170,15 +219,26 @@ def _clean_spaces(text: str) -> str:
     return re.sub(r"[\u00a0\u202f\s]+", " ", text or "").strip()
 
 
+def is_sensitive_revolut_alert(title: str, text: str) -> bool:
+    """Return True if the notification looks like a login/OTP code, 3DS prompt, or security alert."""
+    combined = _clean_spaces(f"{title} {text}")
+    if not combined:
+        return False
+    folded = strip_accents(combined)
+    if any(kw in folded for kw in SENSITIVE_ALERT_PATTERNS):
+        return True
+    if OTP_CODE_REGEX.search(folded):
+        return True
+    return False
+
+
 def parse_number_to_cents(raw_num: str) -> int | None:
     """Convert FR/EN formatted decimal strings ('1 250,50', '1,250.50', '45') to integer cents."""
     cleaned = raw_num.replace(" ", "").strip()
     if not cleaned:
         return None
 
-    # Disambiguate commas and dots
     if "," in cleaned and "." in cleaned:
-        # Whichever appears last is the decimal separator
         if cleaned.rfind(",") > cleaned.rfind("."):
             cleaned = cleaned.replace(".", "").replace(",", ".")
         else:
@@ -200,13 +260,11 @@ def parse_number_to_cents(raw_num: str) -> int | None:
         dec = Decimal(cleaned)
     except InvalidOperation:
         return None
-    cents = int((dec * Decimal(100)).quantize(Decimal("1")))
-    return cents
+    return int((dec * Decimal(100)).quantize(Decimal("1")))
 
 
 def _clean_merchant_name(raw: str) -> str:
     name = _clean_spaces(raw)
-    # Remove trailing account / card boilerplate
     name = re.sub(
         r"\s*(?:\(|\b(?:sur votre|depuis votre|avec votre|via|from your|on your|with your|using your|compte joint|joint account)\b).*$",
         "",
@@ -240,10 +298,8 @@ def _extract_merchant(title: str, text: str, kind: str) -> str:
             if candidate and strip_accents(candidate) not in GENERIC_TITLES:
                 return candidate
 
-    # Fallback: clean title when it looks like a merchant name (e.g. Title="Carrefour", Text="14,80 €")
     clean_title = _clean_merchant_name(title)
     if clean_title and strip_accents(clean_title) not in GENERIC_TITLES and not AMOUNT_REGEX.fullmatch(clean_title):
-        # Strip inline amount if title was "Carrefour · 14,80 €"
         stripped_amt = AMOUNT_REGEX.sub("", clean_title).strip(" ·•-:—")
         if stripped_amt and strip_accents(stripped_amt) not in GENERIC_TITLES:
             return stripped_amt[:100]
@@ -258,8 +314,8 @@ def compute_dedupe_key(
     explicit_key: str | None = None,
 ) -> str:
     """
-    Build a deterministic idempotence key resilient to Render cold-start retries.
-    Uses explicit key if provided; otherwise hashes a 120s time bucket + normalized content.
+    Build a one-way SHA-256 idempotence key resilient to Render cold-start retries.
+    Raw notification contents cannot be recovered from this digest.
     """
     if explicit_key and explicit_key.strip():
         return explicit_key.strip()[:128]
@@ -300,18 +356,7 @@ def parse_revolut_notification(
 ) -> dict[str, Any]:
     """
     Parse a Revolut push notification into a structured decision dict.
-
-    Returns either:
-      {"ignored": True, "reason": "..."}
-    or:
-      {
-        "ignored": False,
-        "kind": "expense" | "refill",
-        "amount_cents": int,
-        "currency": "EUR",
-        "merchant": str,
-        "raw_text": str,
-      }
+    NEVER returns raw notification text for persistence.
     """
     clean_title = _clean_spaces(title)
     clean_text = _clean_spaces(text)
@@ -319,28 +364,32 @@ def parse_revolut_notification(
     folded = strip_accents(combined)
 
     if not combined:
-        return {"ignored": True, "reason": "empty_payload"}
+        return {"ignored": True, "reason": "empty_payload", "drop_silently": True}
 
-    # 1. Always reject declined/failed/auth/promo notifications first
-    for kw in IGNORED_DECLINED_PATTERNS:
-        if kw in folded:
-            return {"ignored": True, "reason": "declined_or_failed"}
+    # 1. Hard SecOps DLP gate: drop login codes, OTP, 3DS prompts & security alerts BEFORE saving anything
+    if is_sensitive_revolut_alert(clean_title, clean_text):
+        return {"ignored": True, "reason": "sensitive_alert", "drop_silently": True}
 
-    for kw in IGNORED_PROMO_PATTERNS:
-        if kw in folded:
-            return {"ignored": True, "reason": "promo_or_non_tx"}
-
-    # 2. Enforce optional joint account keyword filter (comma-separated OR matching)
+    # 2. Enforce optional joint account keyword filter — drop personal alerts BEFORE saving anything
     kw_setting = _clean_spaces(joint_filter_keyword)
     if kw_setting:
         keywords = [strip_accents(k.strip()) for k in kw_setting.split(",") if k.strip()]
         if keywords and not any(k in folded for k in keywords):
-            return {"ignored": True, "reason": "keyword_mismatch"}
+            return {"ignored": True, "reason": "keyword_mismatch", "drop_silently": True}
 
-    # 3. Extract first valid monetary amount
+    # 3. Reject declined/failed/promo notifications
+    for kw in IGNORED_DECLINED_PATTERNS:
+        if kw in folded:
+            return {"ignored": True, "reason": "declined_or_failed", "drop_silently": True}
+
+    for kw in IGNORED_PROMO_PATTERNS:
+        if kw in folded:
+            return {"ignored": True, "reason": "promo_or_non_tx", "drop_silently": True}
+
+    # 4. Extract first valid monetary amount
     match = AMOUNT_REGEX.search(combined)
     if not match:
-        return {"ignored": True, "reason": "no_amount_found"}
+        return {"ignored": True, "reason": "no_amount_found", "drop_silently": True}
 
     raw_num = match.group("num_pre") or match.group("num_post") or ""
     raw_cur = (match.group("cur_pre") or match.group("cur_post") or "€").lower()
@@ -348,11 +397,11 @@ def parse_revolut_notification(
 
     amount_cents = parse_number_to_cents(raw_num)
     if amount_cents is None or amount_cents <= 0:
-        return {"ignored": True, "reason": "invalid_amount"}
+        return {"ignored": True, "reason": "invalid_amount", "drop_silently": True}
 
     currency = CURRENCY_MAP.get(raw_cur, "EUR")
 
-    # 4. Determine direction (expense vs refill)
+    # 5. Determine direction (expense vs refill)
     if raw_sign == "+":
         kind = "refill"
     elif raw_sign in ("-", "−"):
@@ -365,13 +414,12 @@ def parse_revolut_notification(
         kind = "expense"
 
     merchant = _extract_merchant(clean_title, clean_text, kind)
-    raw_display = f"{clean_title} — {clean_text}" if clean_title and clean_text else combined
 
     return {
         "ignored": False,
+        "drop_silently": False,
         "kind": kind,
         "amount_cents": amount_cents,
         "currency": currency,
         "merchant": merchant,
-        "raw_text": raw_display[:320],
     }

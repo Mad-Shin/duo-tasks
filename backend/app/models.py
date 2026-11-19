@@ -195,15 +195,12 @@ class BudgetTransactionOut(BaseModel):
     merchant: str = ""
     note: str = ""
     source: str = "manual"
-    raw_text: str = ""
     created_at: str
 
 
 class WebhookLogEntry(BaseModel):
     received_at: str
-    title: str = ""
-    text: str = ""
-    status: str = "ignored"
+    status: str = "applied"
     reason: str = ""
     parsed_kind: str = ""
     parsed_amount_cents: int = 0

@@ -300,6 +300,33 @@ def init_db() -> None:
                 f"VALUES (1, 0, {ph}, {ph}, {ph}, {ph})",
                 ("EUR", "", "[]", ""),
             )
+        else:
+            # SecOps DLP hygiene: scrub any legacy raw notification text from existing rows
+            cur.execute("UPDATE budget_transactions SET raw_text = '' WHERE raw_text != ''")
+            cur.execute("SELECT webhook_logs_json FROM budget_account WHERE id = 1")
+            wrow = cur.fetchone()
+            raw_logs = wrow["webhook_logs_json"] if wrow else "[]"
+            if isinstance(raw_logs, str) and ('"title"' in raw_logs or '"text"' in raw_logs):
+                try:
+                    loaded = json.loads(raw_logs)
+                    sanitized = [
+                        {
+                            "received_at": str(e.get("received_at") or ""),
+                            "status": str(e.get("status") or ""),
+                            "reason": str(e.get("reason") or ""),
+                            "parsed_kind": str(e.get("parsed_kind") or ""),
+                            "parsed_amount_cents": int(e.get("parsed_amount_cents") or 0),
+                            "parsed_merchant": str(e.get("parsed_merchant") or ""),
+                        }
+                        for e in loaded
+                        if isinstance(e, dict) and e.get("status") == "applied"
+                    ][:5]
+                except Exception:
+                    sanitized = []
+                cur.execute(
+                    f"UPDATE budget_account SET webhook_logs_json = {ph} WHERE id = 1",
+                    (json.dumps(sanitized, ensure_ascii=False),),
+                )
 
         cur.close()
 

@@ -504,13 +504,14 @@
           </div>
           <p class="macro-hint">
             Header requis : <code>X-Webhook-Secret</code> (variable Render <code>REVOLUT_WEBHOOK_SECRET</code>).<br />
-            Body JSON : <code>{"title":"{not_title}","text":"{not_text}","timestamp":"{epoch_time}"}</code>
+            Body JSON : <code>{"title":"{not_title}","text":"{not_text}","timestamp":"{epoch_time}"}</code><br />
+            Sécurité : filtrer codes connexion / 3DS / compte perso dans MacroDroid ; le serveur supprime automatiquement toute alerte sensible ou hors filtre avant tout enregistrement (aucun texte brut conservé).
           </p>
         </div>
 
         <form id="budgetSettingsForm" class="macro-filter-form" autocomplete="off">
           <label class="field-group">
-            <span>Filtre mot-clé compte joint (vide = toutes les notifs Revolut)</span>
+            <span>Filtre mot-clé compte joint (recommandé pour isoler le joint)</span>
             <div class="composer-row compact">
               <input type="text" id="budgetFilterKeywordInput" placeholder="Ex : Compte joint" maxlength="80" />
               <button type="submit" class="btn-add">Enregistrer</button>
@@ -519,9 +520,9 @@
         </form>
 
         <div class="macro-logs-box">
-          <span class="field-label">5 dernières notifs reçues (calibrage)</span>
+          <span class="field-label">5 dernières opérations auto appliquées (sans texte brut)</span>
           <ul class="macro-logs-list" id="macrodroidLogsList"></ul>
-          <div class="lane-empty hidden" id="macrodroidLogsEmpty">Aucune notification reçue pour l'instant.</div>
+          <div class="lane-empty hidden" id="macrodroidLogsEmpty">Aucune opération automatique appliquée pour l'instant.</div>
         </div>
       </div>
     </div>

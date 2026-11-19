@@ -42,7 +42,7 @@ from .models import (
     TaskUpdate,
 )
 from .parser import compute_due_date, infer_aisle, normalize_assignee, normalize_category, parse_quick_add
-from .revolut_parser import compute_dedupe_key, parse_revolut_notification
+from .revolut_parser import compute_dedupe_key, is_sensitive_revolut_alert, parse_revolut_notification
 
 # Prevent Windows registry MIME-type quirks from breaking JS modules or Service Workers
 mimetypes.add_type("application/javascript", ".js")
@@ -1130,12 +1130,11 @@ def _decode_webhook_logs(raw_json: Any) -> list[dict[str, Any]]:
     for item in items[:5]:
         if not isinstance(item, dict):
             continue
+        # SecOps DLP: NEVER expose raw notification title/text
         out.append(
             {
                 "received_at": str(item.get("received_at") or ""),
-                "title": str(item.get("title") or "")[:160],
-                "text": str(item.get("text") or "")[:240],
-                "status": str(item.get("status") or "ignored"),
+                "status": str(item.get("status") or "applied"),
                 "reason": str(item.get("reason") or ""),
                 "parsed_kind": str(item.get("parsed_kind") or ""),
                 "parsed_amount_cents": int(item.get("parsed_amount_cents") or 0),
@@ -1172,7 +1171,6 @@ def _row_to_budget_tx(row: Any) -> dict[str, Any]:
         "merchant": str(data.get("merchant") or ""),
         "note": str(data.get("note") or ""),
         "source": str(data.get("source") or "manual"),
-        "raw_text": str(data.get("raw_text") or ""),
         "created_at": str(data.get("created_at") or ""),
     }
 
@@ -1417,6 +1415,10 @@ async def revolut_macrodroid_webhook(
     ensure_db_ready()
     _verify_revolut_webhook_secret(x_webhook_secret)
 
+    # Hard SecOps DLP gate: drop login codes, 3DS prompts, OTP & security alerts BEFORE any DB access
+    if is_sensitive_revolut_alert(payload.title, payload.text):
+        return {"status": "dropped", "reason": "sensitive_alert"}
+
     now = _utc_now()
     dedupe_key = compute_dedupe_key(
         payload.title,
@@ -1436,7 +1438,14 @@ async def revolut_macrodroid_webhook(
         keyword = str(acc["joint_filter_keyword"] or "") if acc else ""
         logs_json = acc["webhook_logs_json"] if acc else "[]"
 
-        # Check idempotence first (protects against MacroDroid cold-start retries)
+        # Parse & filter BEFORE writing anything (drops personal alerts / non-tx cleanly with 0 DB trace)
+        parsed = parse_revolut_notification(payload.title, payload.text, joint_filter_keyword=keyword)
+        if parsed.get("ignored"):
+            cur.close()
+            reason = str(parsed.get("reason") or "ignored")
+            return {"status": "dropped", "reason": reason, "balance_cents": current_balance}
+
+        # Check idempotence (protects against MacroDroid cold-start retries)
         cur.execute(
             f"SELECT id FROM budget_transactions WHERE dedupe_key = {ph}",
             (dedupe_key,),
@@ -1452,87 +1461,63 @@ async def revolut_macrodroid_webhook(
                 "balance_cents": current_balance,
             }
 
-        parsed = parse_revolut_notification(payload.title, payload.text, joint_filter_keyword=keyword)
-        if parsed.get("ignored"):
-            reason = str(parsed.get("reason") or "ignored")
-            _append_webhook_log(
+        kind = str(parsed["kind"])
+        amount_cents = int(parsed["amount_cents"])
+        merchant = str(parsed["merchant"])
+        new_balance = current_balance - amount_cents if kind == "expense" else current_balance + amount_cents
+
+        try:
+            # SecOps DLP: never persist raw notification text
+            tx_id = _insert_budget_tx(
                 conn,
                 mode,
-                logs_json,
-                {
-                    "received_at": now,
-                    "title": payload.title.strip()[:160],
-                    "text": payload.text.strip()[:240],
-                    "status": "ignored",
-                    "reason": reason,
-                    "parsed_kind": "",
-                    "parsed_amount_cents": 0,
-                    "parsed_merchant": "",
-                },
+                kind=kind,
+                amount_cents=amount_cents,
+                merchant=merchant,
+                note="",
+                source="macrodroid",
+                raw_text="",
+                dedupe_key=dedupe_key,
+                created_at=now,
             )
-            broadcast_action = "budget_webhook_ignored"
-            result: dict[str, Any] = {"status": "ignored", "reason": reason, "balance_cents": current_balance}
-        else:
-            kind = str(parsed["kind"])
-            amount_cents = int(parsed["amount_cents"])
-            merchant = str(parsed["merchant"])
-            raw_text = str(parsed["raw_text"])
-            new_balance = current_balance - amount_cents if kind == "expense" else current_balance + amount_cents
+        except Exception as exc:
+            if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
+                conn.rollback()
+                return {"status": "duplicate", "dedupe_key": dedupe_key, "balance_cents": current_balance}
+            raise
 
-            try:
-                tx_id = _insert_budget_tx(
-                    conn,
-                    mode,
-                    kind=kind,
-                    amount_cents=amount_cents,
-                    merchant=merchant,
-                    note="",
-                    source="macrodroid",
-                    raw_text=raw_text,
-                    dedupe_key=dedupe_key,
-                    created_at=now,
-                )
-            except Exception as exc:
-                # Race-condition duplicate on UNIQUE(dedupe_key)
-                if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
-                    conn.rollback()
-                    return {"status": "duplicate", "dedupe_key": dedupe_key, "balance_cents": current_balance}
-                raise
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE budget_account SET balance_cents = {ph}, updated_at = {ph} WHERE id = 1",
+            (new_balance, now),
+        )
+        cur.close()
 
-            cur = conn.cursor()
-            cur.execute(
-                f"UPDATE budget_account SET balance_cents = {ph}, updated_at = {ph} WHERE id = 1",
-                (new_balance, now),
-            )
-            cur.close()
+        # Store only sanitized structured metadata (zero raw notification title/text)
+        _append_webhook_log(
+            conn,
+            mode,
+            logs_json,
+            {
+                "received_at": now,
+                "status": "applied",
+                "reason": "",
+                "parsed_kind": kind,
+                "parsed_amount_cents": amount_cents,
+                "parsed_merchant": merchant,
+            },
+        )
+        result = {
+            "status": "ok",
+            "kind": kind,
+            "amount_cents": amount_cents,
+            "merchant": merchant,
+            "balance_cents": new_balance,
+            "transaction_id": tx_id,
+            "dedupe_key": dedupe_key,
+        }
 
-            _append_webhook_log(
-                conn,
-                mode,
-                logs_json,
-                {
-                    "received_at": now,
-                    "title": payload.title.strip()[:160],
-                    "text": payload.text.strip()[:240],
-                    "status": "applied",
-                    "reason": "",
-                    "parsed_kind": kind,
-                    "parsed_amount_cents": amount_cents,
-                    "parsed_merchant": merchant,
-                },
-            )
-            broadcast_action = "budget_webhook_applied"
-            result = {
-                "status": "ok",
-                "kind": kind,
-                "amount_cents": amount_cents,
-                "merchant": merchant,
-                "balance_cents": new_balance,
-                "transaction_id": tx_id,
-                "dedupe_key": dedupe_key,
-            }
-
-    await manager.broadcast({"event": "sync", "action": broadcast_action})
+    await manager.broadcast({"event": "sync", "action": "budget_webhook_applied"})
     return result
 
 
