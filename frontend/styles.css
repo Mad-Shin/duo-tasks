@@ -619,7 +619,91 @@ html[data-theme="light"] .quiet-section-header h2 {
 
 /* Tasks <-> Recurring Horizontal Peek Carousel */
 .carousel-block {
+  position: relative;
   min-width: 0;
+}
+
+/* Ultra-discreet animated cat-claw slash + fade transition */
+.cat-claw-fx {
+  position: absolute;
+  top: 46px;
+  left: 50%;
+  width: 176px;
+  height: 94px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.25));
+}
+
+.cat-claw-fx .claw-line {
+  stroke-dasharray: 170;
+  stroke-dashoffset: 170;
+  opacity: 0;
+}
+
+.cat-claw-fx.slash-left {
+  transform: translateX(-50%) scaleX(-1);
+  animation: clawVeil 560ms var(--ease-out) forwards;
+}
+
+.cat-claw-fx.slash-right {
+  transform: translateX(-50%);
+  animation: clawVeil 560ms var(--ease-out) forwards;
+}
+
+.cat-claw-fx.slash-left .claw-1,
+.cat-claw-fx.slash-right .claw-1 {
+  animation: clawDraw 500ms var(--ease-out) 0ms forwards;
+}
+
+.cat-claw-fx.slash-left .claw-2,
+.cat-claw-fx.slash-right .claw-2 {
+  animation: clawDraw 520ms var(--ease-out) 42ms forwards;
+}
+
+.cat-claw-fx.slash-left .claw-3,
+.cat-claw-fx.slash-right .claw-3 {
+  animation: clawDraw 480ms var(--ease-out) 82ms forwards;
+}
+
+@keyframes clawVeil {
+  0% { opacity: 0; }
+  22% { opacity: 0.46; }
+  62% { opacity: 0.3; }
+  100% { opacity: 0; }
+}
+
+@keyframes clawDraw {
+  0% {
+    stroke-dashoffset: 170;
+    opacity: 0;
+  }
+  28% {
+    opacity: 0.92;
+  }
+  60% {
+    stroke-dashoffset: 0;
+    opacity: 0.65;
+  }
+  100% {
+    stroke-dashoffset: -42;
+    opacity: 0;
+  }
+}
+
+html[data-theme="light"] .cat-claw-fx {
+  filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.2));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-claw-fx.slash-left,
+  .cat-claw-fx.slash-right,
+  .cat-claw-fx .claw-line {
+    animation: none !important;
+    opacity: 0 !important;
+  }
 }
 
 .carousel-nav-bar {
@@ -725,6 +809,21 @@ html[data-theme="light"] .swipe-cue-btn {
   flex: 0 0 calc(100% - 14px);
   min-width: 0;
   scroll-snap-align: start;
+  opacity: 0.58;
+  transition: opacity 340ms var(--ease-out);
+}
+
+.carousel-slide.slide-active {
+  opacity: 1;
+}
+
+.carousel-slide.slide-bloom {
+  animation: slideSoftFade 360ms var(--ease-out);
+}
+
+@keyframes slideSoftFade {
+  0% { opacity: 0.62; }
+  100% { opacity: 1; }
 }
 
 .recurring-slide {

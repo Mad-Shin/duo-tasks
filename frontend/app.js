@@ -79,7 +79,9 @@ const els = {
 
   // Carousel & Navigation
   tasksCarousel: document.getElementById("tasksCarousel"),
+  secTasks: document.getElementById("sec-tasks"),
   secRecurring: document.getElementById("sec-recurring"),
+  catClawFx: document.getElementById("catClawFx"),
   dotTasks: document.getElementById("dotTasks"),
   dotRecurring: document.getElementById("dotRecurring"),
   swipeCueBtn: document.getElementById("swipeCueBtn"),
@@ -207,6 +209,28 @@ function syncRecurringToggleUI() {
   els.taskRecurringAssigneeWrap.classList.toggle("hidden", !checked);
 }
 
+let clawFxTimer = null;
+
+function triggerCatClawTransition(toSlide) {
+  if (!els.catClawFx) return;
+  const cls = toSlide === "recurring" ? "slash-left" : "slash-right";
+  els.catClawFx.classList.remove("slash-left", "slash-right");
+  void els.catClawFx.getBoundingClientRect();
+  els.catClawFx.classList.add(cls);
+
+  const incomingEl = toSlide === "recurring" ? els.secRecurring : els.secTasks;
+  if (incomingEl) {
+    incomingEl.classList.remove("slide-bloom");
+    void incomingEl.offsetWidth;
+    incomingEl.classList.add("slide-bloom");
+  }
+
+  clearTimeout(clawFxTimer);
+  clawFxTimer = setTimeout(() => {
+    els.catClawFx.classList.remove("slash-left", "slash-right");
+  }, 600);
+}
+
 function scrollToCarouselSlide(slide) {
   if (!els.tasksCarousel) return;
   const targetLeft = slide === "recurring" ? els.tasksCarousel.scrollWidth : 0;
@@ -215,10 +239,13 @@ function scrollToCarouselSlide(slide) {
 
 function syncCarouselUI() {
   if (!els.tasksCarousel) return;
+  const prevSlide = state.carouselSlide;
   const threshold = Math.max(40, els.tasksCarousel.clientWidth * 0.35);
   const isRecurring = els.tasksCarousel.scrollLeft > threshold;
   const isExpanding = els.tasksCarousel.scrollLeft > 24;
-  state.carouselSlide = isRecurring ? "recurring" : "tasks";
+  const nextSlide = isRecurring ? "recurring" : "tasks";
+  state.carouselSlide = nextSlide;
+
   els.dotTasks.classList.toggle("active", !isRecurring);
   els.dotRecurring.classList.toggle("active", isRecurring);
   els.swipeCueBtn.classList.toggle("is-back", isRecurring);
@@ -227,7 +254,13 @@ function syncCarouselUI() {
     "aria-label",
     isRecurring ? "Revenir aux tâches" : "Glisser vers les tâches récurrentes"
   );
+  els.secTasks.classList.toggle("slide-active", !isRecurring);
+  els.secRecurring.classList.toggle("slide-active", isRecurring);
   els.secRecurring.classList.toggle("in-view", isExpanding);
+
+  if (prevSlide !== nextSlide) {
+    triggerCatClawTransition(nextSlide);
+  }
 }
 
 function setComposerMode(mode, shouldFocus = true) {

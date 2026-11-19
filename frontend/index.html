@@ -161,6 +161,21 @@
     <!-- Single-Column Minimal Stack: Tasks <-> Recurring Peek Carousel | Courses | Events -->
     <main class="main-stack">
       <div class="carousel-block">
+        <!-- Discreet animated cat-claw swipe trail overlay (triggers only on Tâches <-> Récurrentes switch) -->
+        <svg class="cat-claw-fx" id="catClawFx" viewBox="0 0 180 96" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="clawGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#38bdf8" stop-opacity="0"/>
+              <stop offset="35%" stop-color="#38bdf8" stop-opacity="0.72"/>
+              <stop offset="72%" stop-color="#60a5fa" stop-opacity="0.9"/>
+              <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path class="claw-line claw-1" d="M 32 18 Q 86 28 142 46" stroke="url(#clawGrad)" stroke-width="1.45" stroke-linecap="round"/>
+          <path class="claw-line claw-2" d="M 20 34 Q 88 46 162 68" stroke="url(#clawGrad)" stroke-width="1.8" stroke-linecap="round"/>
+          <path class="claw-line claw-3" d="M 36 53 Q 92 64 146 82" stroke="url(#clawGrad)" stroke-width="1.35" stroke-linecap="round"/>
+        </svg>
+
         <div class="carousel-nav-bar">
           <div class="carousel-dots" aria-hidden="true">
             <button type="button" class="c-dot active" id="dotTasks" aria-label="Voir les tâches"></button>
@@ -174,7 +189,7 @@
 
         <div class="tasks-carousel" id="tasksCarousel">
           <!-- SLIDE 1: TÂCHES (Flat, no temporal buckets) -->
-          <section id="sec-tasks" class="carousel-slide">
+          <section id="sec-tasks" class="carousel-slide slide-active">
             <div class="list-stage">
               <svg class="perched-cat" viewBox="0 0 88 40" fill="none" aria-hidden="true">
                 <path d="M18 39c0-9 6-16 14-18l3-10 7 6c3-1 7-1 10 0l7-6 3 10c7 2 11 9 11 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
