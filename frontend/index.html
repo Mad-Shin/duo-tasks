@@ -270,9 +270,9 @@
       <section id="sec-budget" class="section-panel hidden">
         <div class="quiet-section-header">
           <h2>Compte joint</h2>
-          <button type="button" class="budget-cfg-btn" id="openMacrodroidBtn" title="Configuration MacroDroid Android">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2.5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-            <span>MacroDroid</span>
+          <button type="button" class="budget-cfg-btn" id="openMacrodroidBtn" title="Configuration synchronisation" aria-label="Configuration synchronisation">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span>Sync</span>
           </button>
         </div>
 
@@ -444,7 +444,7 @@
         </div>
 
         <div class="drawer-footer">
-          <button type="button" class="btn-text" id="openMacrodroidFromSettingsBtn">Compte joint (MacroDroid)</button>
+          <button type="button" class="btn-text" id="openMacrodroidFromSettingsBtn">Compte joint</button>
           <button type="submit" class="btn-add">Enregistrer</button>
         </div>
       </form>
@@ -495,11 +495,11 @@
     </div>
   </div>
 
-  <!-- MacroDroid Android Config & Calibration Modal -->
+  <!-- Joint Account Sync Config Modal -->
   <div class="modal-backdrop hidden" id="macrodroidModal" role="dialog" aria-modal="true" aria-labelledby="macrodroidModalTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="macrodroidModalTitle">Pont MacroDroid Android</h3>
+        <h3 id="macrodroidModalTitle">Compte joint · Sync</h3>
         <button type="button" class="btn-close" id="closeMacrodroidModalBtn" aria-label="Fermer">✕</button>
       </div>
 
@@ -514,9 +514,8 @@
             <button type="button" class="btn-soft" id="copyWebhookUrlBtn">Copier</button>
           </div>
           <p class="macro-hint">
-            Header requis : <code>X-Webhook-Secret</code> (variable Render <code>REVOLUT_WEBHOOK_SECRET</code>).<br />
-            Body JSON : <code>{"title":"{not_title}","text":"{not_text}","timestamp":"{epoch_time}"}</code><br />
-            Sécurité : filtrer codes connexion / 3DS / compte perso dans MacroDroid ; le serveur supprime automatiquement toute alerte sensible ou hors filtre avant tout enregistrement (aucun texte brut conservé).
+            Header requis : <code>X-Webhook-Secret</code>.<br />
+            Les codes de connexion, demandes 3DS et alertes hors filtre sont ignorés avant tout enregistrement (aucun texte brut conservé).
           </p>
         </div>
 
