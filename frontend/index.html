@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/styles.css?v=33" />
+  <link rel="stylesheet" href="/styles.css?v=34" />
 </head>
 <body>
   <div class="app-shell">
@@ -315,12 +315,18 @@
                 <span class="domo-status-dot" id="domoStatusDot"></span>
                 <span id="domoStatusLabel">Shelly · Chargement…</span>
               </div>
-              <span class="domo-updated" id="domoUpdatedText"></span>
+              <div class="domo-top-meta">
+                <span class="domo-battery-pill hidden" id="domoBatteryTile" title="Batterie capteur BLU H&amp;T">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="17" height="10" rx="2"/><line x1="22" y1="11" x2="22" y2="13"/></svg>
+                  <span id="domoBatteryValue">— %</span>
+                </span>
+                <span class="domo-updated" id="domoUpdatedText"></span>
+              </div>
             </div>
 
             <div class="domo-error-banner hidden" id="domoErrorBanner"></div>
 
-            <!-- Climate Metrics (Shelly BLU H&T) -->
+            <!-- Climate Metrics (Shelly BLU H&T — symmetric 2-column strip) -->
             <div class="domo-metrics-row" id="domoMetricsRow">
               <div class="domo-metric-tile">
                 <div class="domo-metric-head">
@@ -336,14 +342,6 @@
                   <span>Humidité</span>
                 </div>
                 <div class="domo-metric-value" id="domoHumidityValue">— %</div>
-              </div>
-
-              <div class="domo-metric-tile domo-metric-battery hidden" id="domoBatteryTile">
-                <div class="domo-metric-head">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="18" height="10" rx="2"/><line x1="22" y1="11" x2="22" y2="13"/></svg>
-                  <span>Pile</span>
-                </div>
-                <div class="domo-metric-value domo-metric-sm" id="domoBatteryValue">— %</div>
               </div>
             </div>
 
@@ -716,6 +714,6 @@
     </button>
   </nav>
 
-  <script src="/app.js?v=33"></script>
+  <script src="/app.js?v=34"></script>
 </body>
 </html>
