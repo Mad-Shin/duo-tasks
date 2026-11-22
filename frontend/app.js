@@ -1632,7 +1632,24 @@ els.budgetPinForm.addEventListener("submit", async (evt) => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js").catch(() => {});
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let swReloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || swReloading) return;
+    swReloading = true;
+    window.location.reload();
+  });
+  navigator.serviceWorker
+    .register("/sw.js", { updateViaCache: "none" })
+    .then((reg) => {
+      reg.update().catch(() => {});
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          reg.update().catch(() => {});
+        }
+      });
+    })
+    .catch(() => {});
 }
 
 applyTheme(state.theme);

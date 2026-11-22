@@ -424,6 +424,11 @@ class TestTasksAPIAndPWA(unittest.TestCase):
         self.assertEqual(manifest["short_name"], "DuoTasks")
         self.assertEqual(manifest["display"], "standalone")
 
+        for shell_path in ("/", "/sw.js", "/app.js", "/styles.css"):
+            r_shell = self.client.get(shell_path)
+            self.assertEqual(r_shell.status_code, 200)
+            self.assertIn("no-cache", r_shell.headers.get("cache-control", "").lower())
+
     def test_legacy_schema_auto_migration(self) -> None:
         with tempfile.TemporaryDirectory() as legacy_dir:
             legacy_db = Path(legacy_dir) / "legacy.db"

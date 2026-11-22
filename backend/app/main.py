@@ -14,7 +14,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
@@ -182,6 +182,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+NO_CACHE_SHELL_PATHS = {"/", "/index.html", "/sw.js", "/app.js", "/styles.css", "/manifest.json"}
+
+
+@app.middleware("http")
+async def pwa_no_cache_headers(request: Request, call_next: Any) -> Response:
+    response = await call_next(request)
+    if request.url.path in NO_CACHE_SHELL_PATHS:
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 def _bool_param(val: bool, mode: str) -> Any:

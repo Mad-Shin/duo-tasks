@@ -1,16 +1,24 @@
-const CACHE_NAME = "duotasks-shell-v31";
+const CACHE_NAME = "duotasks-shell-v32";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
-  "/styles.css",
-  "/app.js",
+  "/styles.css?v=32",
+  "/app.js?v=32",
   "/manifest.json",
   "/icon.svg"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        SHELL_ASSETS.map((url) =>
+          fetch(new Request(url, { cache: "reload" }))
+            .then((res) => (res.ok ? cache.put(url, res) : null))
+            .catch(() => null)
+        )
+      )
+    )
   );
   self.skipWaiting();
 });
@@ -29,10 +37,18 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) {
     return;
   }
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/ws")) {
+  if (event.request.method !== "GET" || url.pathname.startsWith("/api/") || url.pathname.startsWith("/ws")) {
     return;
   }
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request, { cache: "no-store" })
+      .then((res) => {
+        if (res && res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
+        }
+        return res;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
