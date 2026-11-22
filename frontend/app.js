@@ -15,6 +15,7 @@ const CATEGORY_LABELS = {
 const DEFAULT_PRESETS = ["Deep clean salle de bain hebdo", "Deep clean cuisine hebdo"];
 const DEFAULT_COURSE_PRESETS = ["Pâtes", "Riz", "Liquide vaisselle", "Linge"];
 const SVG_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+const SVG_JP_HEART = '<svg class="jp-heart-ico" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.7C8 13.7 2.2 10.1 2.2 5.9C2.2 3.9 3.7 2.5 5.4 2.5C6.55 2.5 7.5 3.15 8 4.05C8.5 3.15 9.45 2.5 10.6 2.5C12.3 2.5 13.8 3.9 13.8 5.9C13.8 10.1 8 13.7 8 13.7Z" fill="currentColor" fill-opacity="0.24" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.6 5.5C4.7 4.75 5.2 4.35 5.85 4.25" stroke="currentColor" stroke-width="1.05" stroke-linecap="round" opacity="0.72"/></svg>';
 
 const state = {
   composerMode: "task",
@@ -820,22 +821,28 @@ function createRecurringRow(task) {
   const actions = document.createElement("div");
   actions.className = "task-actions-col";
 
-  const isWife = task.assignee === "wife";
-  const currentWho = isWife ? "wife" : "me";
-  const nextWho = isWife ? "me" : "wife";
+  const currentWho = task.assignee === "wife" ? "wife" : task.assignee === "me" ? "me" : "both";
+  const nextWho = currentWho === "me" ? "wife" : currentWho === "wife" ? "both" : "me";
 
   const tagBtn = document.createElement("button");
   tagBtn.type = "button";
   tagBtn.className = `rec-assignee-tag tag-${currentWho}`;
-  tagBtn.title = `Passer à ${partnerName(nextWho)}`;
+  tagBtn.title = nextWho === "both" ? "Passer à deux" : `Passer à ${partnerName(nextWho)}`;
 
-  const dot = document.createElement("span");
-  dot.className = "rec-tag-dot";
-  const nameSpan = document.createElement("span");
-  nameSpan.textContent = partnerName(currentWho);
+  if (currentWho === "both") {
+    tagBtn.innerHTML = SVG_JP_HEART;
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = "À deux";
+    tagBtn.appendChild(labelSpan);
+  } else {
+    const dot = document.createElement("span");
+    dot.className = "rec-tag-dot";
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = partnerName(currentWho);
+    tagBtn.appendChild(dot);
+    tagBtn.appendChild(nameSpan);
+  }
 
-  tagBtn.appendChild(dot);
-  tagBtn.appendChild(nameSpan);
   tagBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     await apiJson(`/api/tasks/${task.id}`, {
@@ -903,7 +910,7 @@ function createListRow(task) {
     metaParts.push({ text: CATEGORY_LABELS[task.category] || task.category, accent: false });
   }
   if (task.recurring && task.completed) {
-    metaParts.push({ text: partnerName(task.assignee), accent: false });
+    metaParts.push({ text: task.assignee === "both" ? "À deux" : partnerName(task.assignee), accent: false });
   }
 
   if (metaParts.length > 0) {
