@@ -13,3 +13,9 @@ services:
         sync: false
       - key: DUO_PIN
         sync: false
+      - key: SHELLY_AUTH_KEY
+        sync: false
+      - key: SHELLY_SERVER_URI
+        value: https://shelly-315-eu.shelly.cloud
+      - key: SHELLY_HEATING_DEVICE_ID
+        value: 80b54e3be384

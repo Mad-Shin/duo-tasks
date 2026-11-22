@@ -768,6 +768,334 @@ class TestTasksAPIAndPWA(unittest.TestCase):
             else:
                 os.environ["REVOLUT_WEBHOOK_SECRET"] = prev_secret
 
+    def test_domotique_unconfigured_and_pin_gate(self) -> None:
+        from backend.app import shelly_client
+
+        prev_key = os.environ.pop("SHELLY_AUTH_KEY", None)
+        prev_local = os.environ.pop("SHELLY_LOCAL_HOST", None)
+        prev_pin = os.environ.get("DUO_PIN")
+        shelly_client.invalidate_cache()
+        try:
+            os.environ["DUO_PIN"] = "4321"
+            self.assertEqual(self.client.get("/api/domotique").status_code, 401)
+            self.assertEqual(
+                self.client.post("/api/domotique/heating", json={"on": True}).status_code,
+                401,
+            )
+
+            res = self.client.get("/api/domotique", headers={"X-Duo-Pin": "4321"})
+            self.assertEqual(res.status_code, 200)
+            body = res.json()
+            self.assertFalse(body["configured"])
+            self.assertEqual(body["source"], "unconfigured")
+            self.assertTrue(body["pin_required"])
+
+            res_ctl = self.client.post(
+                "/api/domotique/heating",
+                headers={"X-Duo-Pin": "4321"},
+                json={"on": False},
+            )
+            self.assertEqual(res_ctl.status_code, 503)
+        finally:
+            shelly_client.invalidate_cache()
+            if prev_key is not None:
+                os.environ["SHELLY_AUTH_KEY"] = prev_key
+            if prev_local is not None:
+                os.environ["SHELLY_LOCAL_HOST"] = prev_local
+            if prev_pin is None:
+                os.environ.pop("DUO_PIN", None)
+            else:
+                os.environ["DUO_PIN"] = prev_pin
+
+    def test_domotique_cloud_parse_gen3_blu_ht_and_future_bulb(self) -> None:
+        from unittest.mock import patch
+
+        from backend.app import shelly_client
+
+        sample_cloud_payload = {
+            "isok": True,
+            "data": {
+                "devices_status": {
+                    "80b54e3be384": {
+                        "_dev_info": {
+                            "id": "80b54e3be384",
+                            "code": "S3SW-001X16EU",
+                            "name": "Chaudière Gaz",
+                            "online": True,
+                        },
+                        "switch:0": {
+                            "id": 0,
+                            "output": True,
+                            "temperature": {"tC": 48.2},
+                        },
+                        "wifi": {"rssi": -54},
+                        "sys": {"mac": "80B54E3BE384"},
+                        "_updated": "2026-11-22T19:45:00Z",
+                    },
+                    "94ec328183dc": {
+                        "_dev_info": {
+                            "id": "94ec328183dc",
+                            "code": "SBHT-003C",
+                            "name": "Salon BLU H&T",
+                            "gen": "GBLE",
+                            "online": True,
+                        },
+                        "temperature:0": {"tC": 20.6},
+                        "humidity:0": {"rh": 53.4},
+                        "devicepower:0": {"battery": {"percent": 96}},
+                        "_updated": "2026-11-22T19:44:00Z",
+                    },
+                    "aabbccddeeff": {
+                        "_dev_info": {
+                            "id": "aabbccddeeff",
+                            "code": "SHBLB-1",
+                            "name": "Lampe Salon",
+                            "online": True,
+                        },
+                        "light:0": {"output": True, "brightness": 72},
+                        "_updated": "2026-11-22T19:44:30Z",
+                    },
+                }
+            },
+        }
+
+        class FakeResponse:
+            def __init__(self, status_code: int, payload: dict) -> None:
+                self.status_code = status_code
+                self._payload = payload
+
+            def raise_for_status(self) -> None:
+                if self.status_code >= 400:
+                    raise RuntimeError(f"HTTP {self.status_code}")
+
+            def json(self) -> dict:
+                return self._payload
+
+        class FakeAsyncClient:
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args) -> None:
+                return None
+
+            async def post(self, url: str, data=None, params=None, json=None):
+                return FakeResponse(200, sample_cloud_payload)
+
+        prev_key = os.environ.get("SHELLY_AUTH_KEY")
+        shelly_client.invalidate_cache()
+        try:
+            os.environ["SHELLY_AUTH_KEY"] = "secret-shelly-key-999"
+            with patch.object(shelly_client.httpx, "AsyncClient", FakeAsyncClient):
+                res = self.client.get("/api/domotique?force=true")
+            self.assertEqual(res.status_code, 200)
+            body = res.json()
+            self.assertTrue(body["configured"])
+            self.assertEqual(body["source"], "cloud")
+            self.assertTrue(body["online"])
+            self.assertEqual(body["heating"]["device_id"], "80b54e3be384")
+            self.assertEqual(body["heating"]["name"], "Chaudière Gaz")
+            self.assertTrue(body["heating"]["is_on"])
+            self.assertEqual(body["heating"]["relay_temp_c"], 48.2)
+            self.assertEqual(body["climate"]["temperature_c"], 20.6)
+            self.assertEqual(body["climate"]["humidity_pct"], 53.4)
+            self.assertEqual(body["climate"]["battery_pct"], 96)
+            self.assertEqual(len(body["lights"]), 1)
+            self.assertEqual(body["lights"][0]["name"], "Lampe Salon")
+            self.assertEqual(body["lights"][0]["brightness"], 72)
+            self.assertNotIn("secret-shelly-key-999", json.dumps(body))
+        finally:
+            shelly_client.invalidate_cache()
+            if prev_key is None:
+                os.environ.pop("SHELLY_AUTH_KEY", None)
+            else:
+                os.environ["SHELLY_AUTH_KEY"] = prev_key
+
+    def test_domotique_heating_boost_bulb_control_and_secret_redaction(self) -> None:
+        from unittest.mock import patch
+
+        from backend.app import shelly_client
+
+        recorded_calls: list[dict] = []
+        relay_state = {"on": False}
+        bulb_state = {"on": False, "brightness": 40}
+
+        class FakeResponse:
+            def __init__(self, status_code: int, payload: dict) -> None:
+                self.status_code = status_code
+                self._payload = payload
+
+            def raise_for_status(self) -> None:
+                if self.status_code >= 400:
+                    raise RuntimeError(f"HTTP {self.status_code} secret-shelly-key-xyz")
+
+            def json(self) -> dict:
+                return self._payload
+
+        class FakeAsyncClient:
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args) -> None:
+                return None
+
+            async def post(self, url: str, data=None, params=None, json=None):
+                recorded_calls.append({"url": url, "data": data, "params": params, "json": json})
+                if url.endswith("/device/all_status"):
+                    return FakeResponse(
+                        200,
+                        {
+                            "isok": True,
+                            "data": {
+                                "devices_status": {
+                                    "80b54e3be384": {
+                                        "_dev_info": {"code": "S3SW-001X16EU", "online": True},
+                                        "switch:0": {"output": relay_state["on"]},
+                                    },
+                                    "bulb001": {
+                                        "_dev_info": {"code": "SHBLB-1", "name": "Lampe", "online": True},
+                                        "light:0": {
+                                            "output": bulb_state["on"],
+                                            "brightness": bulb_state["brightness"],
+                                        },
+                                    },
+                                }
+                            },
+                        },
+                    )
+                if "/v2/devices/api/set/switch" in url:
+                    # Simulate v2 404 to prove clean v1 fallback works
+                    return FakeResponse(404, {"isok": False})
+                if url.endswith("/device/relay/control"):
+                    relay_state["on"] = data.get("turn") == "on"
+                    return FakeResponse(200, {"isok": True})
+                if "/v2/devices/api/set/light" in url:
+                    bulb_state["on"] = bool(json.get("ison"))
+                    if "brightness" in json:
+                        bulb_state["brightness"] = int(json["brightness"])
+                    return FakeResponse(200, {"isok": True})
+                return FakeResponse(500, {"isok": False})
+
+        prev_key = os.environ.get("SHELLY_AUTH_KEY")
+        shelly_client.invalidate_cache()
+        try:
+            os.environ["SHELLY_AUTH_KEY"] = "secret-shelly-key-xyz"
+            with patch.object(shelly_client.httpx, "AsyncClient", FakeAsyncClient):
+                r_boost = self.client.post(
+                    "/api/domotique/heating",
+                    json={"on": True, "timer_minutes": 60},
+                )
+                self.assertEqual(r_boost.status_code, 200)
+                b = r_boost.json()
+                self.assertTrue(b["heating"]["is_on"])
+                self.assertEqual(b["heating"]["timer_remaining_sec"], 3600)
+
+                # Verify v2 attempted with toggle_after=3600 then v1 fallback sent timer=3600
+                v2_sw = [c for c in recorded_calls if "/v2/devices/api/set/switch" in c["url"]]
+                v1_sw = [c for c in recorded_calls if c["url"].endswith("/device/relay/control")]
+                self.assertEqual(len(v2_sw), 1)
+                self.assertEqual(v2_sw[0]["json"]["toggle_after"], 3600)
+                self.assertEqual(len(v1_sw), 1)
+                self.assertEqual(v1_sw[0]["data"]["timer"], 3600)
+
+                # Control future bulb via v2 light endpoint
+                r_bulb = self.client.post(
+                    "/api/domotique/devices/bulb001/control",
+                    json={"on": True, "kind": "light", "channel": 0, "brightness": 85},
+                )
+                self.assertEqual(r_bulb.status_code, 200)
+                self.assertEqual(r_bulb.json()["lights"][0]["brightness"], 85)
+                self.assertTrue(r_bulb.json()["lights"][0]["is_on"])
+
+            # Verify auth key is sanitized even if upstream errors embed it
+            sanitized = shelly_client._sanitize_error(
+                "Error calling ?auth_key=secret-shelly-key-xyz", "secret-shelly-key-xyz"
+            )
+            self.assertNotIn("secret-shelly-key-xyz", sanitized)
+        finally:
+            shelly_client.invalidate_cache()
+            if prev_key is None:
+                os.environ.pop("SHELLY_AUTH_KEY", None)
+            else:
+                os.environ["SHELLY_AUTH_KEY"] = prev_key
+
+    def test_domotique_local_lan_fallback_reads_relay_and_blu_kvs(self) -> None:
+        from unittest.mock import patch
+
+        from backend.app import shelly_client
+
+        class FakeResponse:
+            def __init__(self, status_code: int, payload: dict) -> None:
+                self.status_code = status_code
+                self._payload = payload
+
+            def raise_for_status(self) -> None:
+                if self.status_code >= 400:
+                    raise RuntimeError(f"HTTP {self.status_code}")
+
+            def json(self) -> dict:
+                return self._payload
+
+        class FakeLocalClient:
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args) -> None:
+                return None
+
+            async def get(self, url: str, params=None):
+                if "Shelly.GetDeviceInfo" in url:
+                    return FakeResponse(200, {"mac": "80B54E3BE384", "model": "S3SW-001X16EU"})
+                if "Shelly.GetStatus" in url:
+                    return FakeResponse(
+                        200,
+                        {
+                            "switch:0": {"output": True, "temperature": {"tC": 49.0}},
+                            "wifi": {"rssi": -52},
+                        },
+                    )
+                if "KVS.Get" in url:
+                    return FakeResponse(
+                        200,
+                        {
+                            "value": json.dumps(
+                                {"mac": "94:ec:32:81:83:dc", "t": 19.8, "h": 55, "b": 99, "ts": "2026-11-22T20:00:00Z"}
+                            )
+                        },
+                    )
+                return FakeResponse(404, {})
+
+        prev_key = os.environ.pop("SHELLY_AUTH_KEY", None)
+        prev_local = os.environ.get("SHELLY_LOCAL_HOST")
+        shelly_client.invalidate_cache()
+        try:
+            os.environ["SHELLY_LOCAL_HOST"] = "192.168.1.109"
+            with patch.object(shelly_client.httpx, "AsyncClient", FakeLocalClient):
+                res = self.client.get("/api/domotique?force=true")
+            self.assertEqual(res.status_code, 200)
+            body = res.json()
+            self.assertEqual(body["source"], "local")
+            self.assertTrue(body["heating"]["is_on"])
+            self.assertEqual(body["climate"]["temperature_c"], 19.8)
+            self.assertEqual(body["climate"]["humidity_pct"], 55.0)
+            self.assertEqual(body["climate"]["battery_pct"], 99)
+        finally:
+            shelly_client.invalidate_cache()
+            if prev_key is not None:
+                os.environ["SHELLY_AUTH_KEY"] = prev_key
+            if prev_local is None:
+                os.environ.pop("SHELLY_LOCAL_HOST", None)
+            else:
+                os.environ["SHELLY_LOCAL_HOST"] = prev_local
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

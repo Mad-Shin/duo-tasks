@@ -119,11 +119,11 @@ a:focus-visible {
   margin: 0 auto;
   min-height: 100dvh;
   overflow-x: clip;
-  padding: calc(18px + env(safe-area-inset-top)) 16px calc(156px + env(safe-area-inset-bottom));
+  padding: calc(18px + env(safe-area-inset-top)) 16px calc(210px + env(safe-area-inset-bottom));
 }
 
 .app-shell.has-budget {
-  padding-bottom: calc(220px + env(safe-area-inset-bottom));
+  padding-bottom: calc(260px + env(safe-area-inset-bottom));
 }
 
 /* Header */
@@ -2103,4 +2103,459 @@ html[data-theme="light"] .urgent-check {
     width: 12px;
     height: 12px;
   }
+}
+
+/* ============================================================================
+   DOMOTIQUE (Shelly 1 Gen3 Gas Heating + BLU H&T + Future Bulbs)
+   ============================================================================ */
+
+.domo-card {
+  position: relative;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: linear-gradient(155deg, rgba(22, 29, 44, 0.94) 0%, rgba(13, 18, 28, 0.96) 100%);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.domo-card.heating-on {
+  border-color: rgba(245, 158, 11, 0.34);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.56),
+    0 0 28px rgba(245, 158, 11, 0.08),
+    inset 0 1px 0 rgba(251, 191, 36, 0.14);
+}
+
+html[data-theme="light"] .domo-card {
+  background: linear-gradient(155deg, #ffffff 0%, #f8fafc 100%);
+  border-color: rgba(15, 23, 42, 0.09);
+}
+
+html[data-theme="light"] .domo-card.heating-on {
+  border-color: rgba(217, 119, 6, 0.32);
+  box-shadow:
+    0 10px 28px rgba(217, 119, 6, 0.09),
+    0 1px 3px rgba(15, 23, 42, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.domo-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 15px 18px 0;
+}
+
+.domo-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.domo-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  opacity: 0.65;
+  flex: 0 0 auto;
+}
+
+.domo-status-dot.live {
+  background: var(--ok);
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.75);
+}
+
+.domo-status-dot.warn {
+  background: #f59e0b;
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.65);
+}
+
+.domo-updated {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.domo-error-banner {
+  margin: 10px 18px 0;
+  padding: 8px 11px;
+  border-radius: 10px;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.28);
+}
+
+html[data-theme="light"] .domo-error-banner {
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.22);
+}
+
+.domo-setup-box {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.domo-setup-text {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.domo-setup-hint {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.domo-setup-box code {
+  font-size: 0.76rem;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--cyber-cyan);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+}
+
+.domo-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 10px;
+  padding: 13px 18px 14px;
+}
+
+.domo-metric-tile {
+  padding: 11px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.025);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+html[data-theme="light"] .domo-metric-tile {
+  background: rgba(15, 23, 42, 0.025);
+}
+
+.domo-metric-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.domo-metric-head svg {
+  width: 13px;
+  height: 13px;
+  color: var(--cyber-cyan);
+  flex: 0 0 auto;
+}
+
+.domo-metric-value {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.domo-metric-value.domo-metric-sm {
+  font-size: 1.25rem;
+}
+
+.domo-heating-block {
+  border-top: 1px solid var(--border);
+  padding: 14px 18px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+html[data-theme="light"] .domo-heating-block {
+  background: rgba(15, 23, 42, 0.018);
+}
+
+.domo-heating-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.domo-heating-info {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.domo-flame-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.domo-flame-badge svg {
+  width: 20px;
+  height: 20px;
+}
+
+.domo-flame-badge.on {
+  background: linear-gradient(160deg, rgba(245, 158, 11, 0.26) 0%, rgba(234, 88, 12, 0.18) 100%);
+  border-color: rgba(251, 191, 36, 0.48);
+  color: #fbbf24;
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.28);
+}
+
+html[data-theme="light"] .domo-flame-badge.on {
+  background: linear-gradient(160deg, rgba(245, 158, 11, 0.18) 0%, rgba(234, 88, 12, 0.12) 100%);
+  border-color: rgba(217, 119, 6, 0.42);
+  color: #d97706;
+}
+
+.domo-heating-text {
+  min-width: 0;
+}
+
+.domo-heating-name {
+  font-family: var(--font-display);
+  font-size: 0.96rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.domo-heating-state {
+  margin-top: 2px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.domo-heating-state.on {
+  color: #fbbf24;
+}
+
+html[data-theme="light"] .domo-heating-state.on {
+  color: #b45309;
+}
+
+.domo-power-btn {
+  flex: 0 0 auto;
+  min-width: 108px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface) 100%);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 10px 15px;
+  cursor: pointer;
+  box-shadow: var(--shadow-btn);
+  transition: transform 0.12s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.domo-power-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.domo-power-btn.is-on {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.22) 0%, rgba(217, 119, 6, 0.14) 100%);
+  color: #fde68a;
+}
+
+html[data-theme="light"] .domo-power-btn.is-on {
+  background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
+  border-color: rgba(217, 119, 6, 0.45);
+  color: #92400e;
+}
+
+.domo-power-btn.is-off {
+  border-color: rgba(59, 130, 246, 0.42);
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: #ffffff;
+  box-shadow: var(--shadow-accent);
+}
+
+.domo-power-btn.armed {
+  border-color: rgba(248, 113, 113, 0.72);
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.36);
+}
+
+.domo-power-btn:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: var(--shadow-pressed);
+}
+
+.domo-boost-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.domo-boost-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-right: 2px;
+}
+
+.domo-boost-btn {
+  padding: 5px 10px;
+  font-size: 0.74rem;
+}
+
+.domo-lights-wrap {
+  border-top: 1px solid var(--border);
+  padding: 12px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.domo-lights-header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.domo-lights-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.domo-light-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+html[data-theme="light"] .domo-light-item {
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.domo-light-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.domo-light-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.domo-light-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.domo-light-sub {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.domo-light-toggle {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.domo-light-toggle.on {
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(245, 158, 11, 0.2);
+  color: #fde68a;
+}
+
+html[data-theme="light"] .domo-light-toggle.on {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.domo-bright-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.domo-bright-slider {
+  flex: 1;
+  accent-color: #f59e0b;
+  cursor: pointer;
+}
+
+#domoRefreshBtn.spinning svg {
+  animation: domoSpin 0.8s linear infinite;
+}
+
+@keyframes domoSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

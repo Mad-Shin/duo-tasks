@@ -39,6 +39,11 @@ const state = {
   budgetPin: localStorage.getItem("duotasks_duo_pin") || "",
   budgetDrawerOpen: false,
   budgetModalMode: "refill",
+  domo: null,
+  domoLocked: false,
+  domoBusy: false,
+  domoConfirmArmed: false,
+  domoConfirmTimer: null,
   ws: null,
   reconnectDelay: 1000
 };
@@ -181,7 +186,33 @@ const els = {
   budgetSettingsForm: document.getElementById("budgetSettingsForm"),
   budgetFilterKeywordInput: document.getElementById("budgetFilterKeywordInput"),
   macrodroidLogsList: document.getElementById("macrodroidLogsList"),
-  macrodroidLogsEmpty: document.getElementById("macrodroidLogsEmpty")
+  macrodroidLogsEmpty: document.getElementById("macrodroidLogsEmpty"),
+
+  // Domotique (#sec-domotique)
+  secDomotique: document.getElementById("sec-domotique"),
+  dockDomoBtn: document.getElementById("dockDomoBtn"),
+  domoRefreshBtn: document.getElementById("domoRefreshBtn"),
+  domoCard: document.getElementById("domoCard"),
+  domoPinGate: document.getElementById("domoPinGate"),
+  domoPinForm: document.getElementById("domoPinForm"),
+  domoPinInput: document.getElementById("domoPinInput"),
+  domoPinError: document.getElementById("domoPinError"),
+  domoSetupBox: document.getElementById("domoSetupBox"),
+  domoCardBody: document.getElementById("domoCardBody"),
+  domoStatusDot: document.getElementById("domoStatusDot"),
+  domoStatusLabel: document.getElementById("domoStatusLabel"),
+  domoUpdatedText: document.getElementById("domoUpdatedText"),
+  domoErrorBanner: document.getElementById("domoErrorBanner"),
+  domoTempValue: document.getElementById("domoTempValue"),
+  domoHumidityValue: document.getElementById("domoHumidityValue"),
+  domoBatteryTile: document.getElementById("domoBatteryTile"),
+  domoBatteryValue: document.getElementById("domoBatteryValue"),
+  domoFlameBadge: document.getElementById("domoFlameBadge"),
+  domoHeatingName: document.getElementById("domoHeatingName"),
+  domoHeatingState: document.getElementById("domoHeatingState"),
+  domoHeatingToggleBtn: document.getElementById("domoHeatingToggleBtn"),
+  domoLightsWrap: document.getElementById("domoLightsWrap"),
+  domoLightsList: document.getElementById("domoLightsList")
 };
 
 function partnerName(key) {
@@ -739,7 +770,287 @@ async function refreshAll() {
   renderProfileLabels();
   renderPresetButtons();
   renderAllSections();
-  await refreshBudget();
+  await Promise.all([refreshBudget(), refreshDomotique(false)]);
+}
+
+// --- Domotique (Shelly Cloud / Local) ---
+
+function formatTempFr(val) {
+  if (val === null || val === undefined || !Number.isFinite(Number(val))) return "— °C";
+  return `${Number(val).toFixed(1).replace(".", ",")} °C`;
+}
+
+function formatHumidityFr(val) {
+  if (val === null || val === undefined || !Number.isFinite(Number(val))) return "— %";
+  return `${Math.round(Number(val))} %`;
+}
+
+function formatTimerShortFr(sec) {
+  if (!sec || sec <= 0) return "";
+  const mins = Math.max(1, Math.round(sec / 60));
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem ? `${h}h${String(rem).padStart(2, "0")}` : `${h}h`;
+}
+
+function resetDomoConfirm() {
+  state.domoConfirmArmed = false;
+  if (state.domoConfirmTimer) {
+    clearTimeout(state.domoConfirmTimer);
+    state.domoConfirmTimer = null;
+  }
+}
+
+async function refreshDomotique(force = false) {
+  if (!els.domoCard) return;
+  if (force && els.domoRefreshBtn) {
+    els.domoRefreshBtn.classList.add("spinning");
+  }
+  try {
+    const qs = force ? "?force=true" : "";
+    const data = await budgetApiJson(`/api/domotique${qs}`);
+    state.domo = data;
+    state.domoLocked = false;
+    if (els.domoPinError) els.domoPinError.classList.add("hidden");
+    renderDomotique();
+  } catch (err) {
+    if (err && err.status === 401) {
+      state.domoLocked = true;
+      renderDomotique();
+    } else {
+      console.error(err);
+    }
+  } finally {
+    if (els.domoRefreshBtn) {
+      els.domoRefreshBtn.classList.remove("spinning");
+    }
+  }
+}
+
+function renderDomotique() {
+  if (!els.domoCard) return;
+
+  if (state.domoLocked) {
+    els.domoPinGate.classList.remove("hidden");
+    els.domoSetupBox.classList.add("hidden");
+    els.domoCardBody.classList.add("hidden");
+    els.domoCard.classList.remove("heating-on");
+    return;
+  }
+
+  els.domoPinGate.classList.add("hidden");
+  const d = state.domo;
+  if (!d) return;
+
+  if (!d.configured) {
+    els.domoSetupBox.classList.remove("hidden");
+    els.domoCardBody.classList.add("hidden");
+    els.domoCard.classList.remove("heating-on");
+    return;
+  }
+
+  els.domoSetupBox.classList.add("hidden");
+  els.domoCardBody.classList.remove("hidden");
+
+  // Status header
+  const sourceLabel = d.source === "local" ? "Shelly Local" : "Shelly Cloud";
+  els.domoStatusDot.classList.toggle("live", Boolean(d.online));
+  els.domoStatusDot.classList.toggle("warn", !d.online && Boolean(d.error));
+  els.domoStatusLabel.textContent = d.online
+    ? `${sourceLabel} · En ligne`
+    : `${sourceLabel} · Hors ligne`;
+
+  const tsRef = (d.climate && d.climate.updated_at) || (d.heating && d.heating.updated_at) || d.fetched_at;
+  els.domoUpdatedText.textContent = tsRef ? formatRelativeFr(tsRef) : "";
+
+  if (d.error) {
+    els.domoErrorBanner.textContent = d.error;
+    els.domoErrorBanner.classList.remove("hidden");
+  } else {
+    els.domoErrorBanner.textContent = "";
+    els.domoErrorBanner.classList.add("hidden");
+  }
+
+  // Climate metrics (Shelly BLU H&T)
+  const climate = d.climate;
+  els.domoTempValue.textContent = climate ? formatTempFr(climate.temperature_c) : "— °C";
+  els.domoHumidityValue.textContent = climate ? formatHumidityFr(climate.humidity_pct) : "— %";
+  if (climate && climate.battery_pct !== null && climate.battery_pct !== undefined) {
+    els.domoBatteryTile.classList.remove("hidden");
+    els.domoBatteryValue.textContent = `${climate.battery_pct} %`;
+  } else {
+    els.domoBatteryTile.classList.add("hidden");
+  }
+
+  // Gas Heating relay
+  const h = d.heating;
+  const isOn = Boolean(h && h.is_on);
+  els.domoCard.classList.toggle("heating-on", isOn);
+  els.domoFlameBadge.classList.toggle("on", isOn);
+  els.domoHeatingState.classList.toggle("on", isOn);
+  els.domoHeatingName.textContent = (h && h.name) || "Chauffage gaz";
+
+  if (!h) {
+    els.domoHeatingState.textContent = "Relais non détecté";
+    els.domoHeatingToggleBtn.disabled = true;
+    els.domoHeatingToggleBtn.textContent = "Indispo";
+    els.domoHeatingToggleBtn.className = "domo-power-btn";
+  } else {
+    const parts = [isOn ? "Allumé" : "Éteint"];
+    if (isOn && h.timer_remaining_sec) {
+      parts.push(`coupe dans ${formatTimerShortFr(h.timer_remaining_sec)}`);
+    }
+    if (!h.online) {
+      parts.push("hors ligne");
+    }
+    els.domoHeatingState.textContent = parts.join(" · ");
+    els.domoHeatingToggleBtn.disabled = state.domoBusy || !h.online;
+
+    if (state.domoBusy) {
+      els.domoHeatingToggleBtn.textContent = "Envoi…";
+      els.domoHeatingToggleBtn.className = "domo-power-btn";
+    } else if (state.domoConfirmArmed) {
+      els.domoHeatingToggleBtn.textContent = isOn ? "Confirmer OFF" : "Confirmer ON";
+      els.domoHeatingToggleBtn.className = "domo-power-btn armed";
+    } else {
+      els.domoHeatingToggleBtn.textContent = isOn ? "Couper" : "Allumer";
+      els.domoHeatingToggleBtn.className = `domo-power-btn ${isOn ? "is-on" : "is-off"}`;
+    }
+  }
+
+  document.querySelectorAll(".domo-boost-btn").forEach((btn) => {
+    btn.disabled = state.domoBusy || !h || !h.online;
+  });
+
+  // Auto-discovered future Shelly bulbs / plugs
+  const lights = Array.isArray(d.lights) ? d.lights : [];
+  els.domoLightsWrap.classList.toggle("hidden", lights.length === 0);
+  els.domoLightsList.innerHTML = "";
+
+  lights.forEach((dev) => {
+    const li = document.createElement("li");
+    li.className = "domo-light-item";
+
+    const top = document.createElement("div");
+    top.className = "domo-light-top";
+
+    const meta = document.createElement("div");
+    meta.className = "domo-light-meta";
+    const nameEl = document.createElement("span");
+    nameEl.className = "domo-light-name";
+    nameEl.textContent = dev.name || dev.device_id;
+    const subEl = document.createElement("span");
+    subEl.className = "domo-light-sub";
+    subEl.textContent = dev.online
+      ? dev.is_on
+        ? dev.brightness !== null && dev.brightness !== undefined
+          ? `Allumée · ${dev.brightness}%`
+          : "Allumé"
+        : "Éteint"
+      : "Hors ligne";
+    meta.appendChild(nameEl);
+    meta.appendChild(subEl);
+
+    const toggleBtn = document.createElement("button");
+    toggleBtn.type = "button";
+    toggleBtn.className = `domo-light-toggle${dev.is_on ? " on" : ""}`;
+    toggleBtn.textContent = dev.is_on ? "ON" : "OFF";
+    toggleBtn.disabled = state.domoBusy || !dev.online;
+    toggleBtn.addEventListener("click", () => {
+      controlDomoLight(dev, !dev.is_on, dev.brightness);
+    });
+
+    top.appendChild(meta);
+    top.appendChild(toggleBtn);
+    li.appendChild(top);
+
+    if (dev.kind === "light" && dev.brightness !== null && dev.brightness !== undefined) {
+      const brightRow = document.createElement("div");
+      brightRow.className = "domo-bright-row";
+      const lbl = document.createElement("span");
+      lbl.textContent = "Luminosité";
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.min = "5";
+      slider.max = "100";
+      slider.value = String(Math.max(5, Math.min(100, Number(dev.brightness) || 50)));
+      slider.className = "domo-bright-slider";
+      slider.disabled = state.domoBusy || !dev.online;
+      const pctOut = document.createElement("span");
+      pctOut.textContent = `${slider.value}%`;
+      slider.addEventListener("input", () => {
+        pctOut.textContent = `${slider.value}%`;
+      });
+      slider.addEventListener("change", () => {
+        controlDomoLight(dev, true, Number(slider.value));
+      });
+      brightRow.appendChild(lbl);
+      brightRow.appendChild(slider);
+      brightRow.appendChild(pctOut);
+      li.appendChild(brightRow);
+    }
+
+    els.domoLightsList.appendChild(li);
+  });
+}
+
+async function sendHeatingCommand(targetOn, timerMinutes = null) {
+  resetDomoConfirm();
+  state.domoBusy = true;
+  renderDomotique();
+  try {
+    const body = { on: Boolean(targetOn) };
+    if (timerMinutes) body.timer_minutes = timerMinutes;
+    const updated = await budgetApiJson("/api/domotique/heating", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    state.domo = updated;
+    if (timerMinutes && targetOn) {
+      showToast(`Boost chauffage activé (${formatTimerShortFr(timerMinutes * 60)})`);
+    } else {
+      showToast(targetOn ? "Chauffage gaz allumé" : "Chauffage gaz coupé");
+    }
+  } catch (err) {
+    console.error(err);
+    showToast("Erreur commande Shelly");
+    await refreshDomotique(true);
+  } finally {
+    state.domoBusy = false;
+    renderDomotique();
+  }
+}
+
+async function controlDomoLight(dev, targetOn, brightness = null) {
+  state.domoBusy = true;
+  renderDomotique();
+  try {
+    const body = {
+      on: Boolean(targetOn),
+      kind: dev.kind || "light",
+      channel: dev.channel || 0
+    };
+    if (dev.kind === "light" && brightness !== null && brightness !== undefined) {
+      body.brightness = Math.max(1, Math.min(100, Number(brightness)));
+    }
+    const updated = await budgetApiJson(
+      `/api/domotique/devices/${encodeURIComponent(dev.device_id)}/control`,
+      {
+        method: "POST",
+        body: JSON.stringify(body)
+      }
+    );
+    state.domo = updated;
+    showToast(`${dev.name || "Appareil"} : ${targetOn ? "ON" : "OFF"}`);
+  } catch (err) {
+    console.error(err);
+    showToast("Erreur commande appareil");
+    await refreshDomotique(true);
+  } finally {
+    state.domoBusy = false;
+    renderDomotique();
+  }
 }
 
 function renderAllSections() {
@@ -1609,7 +1920,7 @@ els.budgetSettingsForm.addEventListener("submit", async (evt) => {
   }
 });
 
-// DUO_PIN Unlock Form
+// DUO_PIN Unlock Form (Budget)
 els.budgetPinForm.addEventListener("submit", async (evt) => {
   evt.preventDefault();
   const pin = els.budgetPinInput.value.trim();
@@ -1623,12 +1934,71 @@ els.budgetPinForm.addEventListener("submit", async (evt) => {
     els.budgetPinInput.value = "";
     els.budgetPinError.classList.add("hidden");
     renderBudget();
-    showToast("Compte joint déverrouillé");
+    await refreshDomotique(false);
+    showToast("Déverrouillé");
   } catch (err) {
     state.budgetPin = "";
     localStorage.removeItem("duotasks_duo_pin");
     els.budgetPinError.classList.remove("hidden");
   }
+});
+
+// Domotique Events
+if (els.domoRefreshBtn) {
+  els.domoRefreshBtn.addEventListener("click", () => {
+    resetDomoConfirm();
+    refreshDomotique(true);
+  });
+}
+
+if (els.domoPinForm) {
+  els.domoPinForm.addEventListener("submit", async (evt) => {
+    evt.preventDefault();
+    const pin = els.domoPinInput.value.trim();
+    if (!pin) return;
+    state.budgetPin = pin;
+    try {
+      const data = await budgetApiJson("/api/domotique");
+      localStorage.setItem("duotasks_duo_pin", pin);
+      state.domo = data;
+      state.domoLocked = false;
+      els.domoPinInput.value = "";
+      els.domoPinError.classList.add("hidden");
+      renderDomotique();
+      await refreshBudget();
+      showToast("Domotique déverrouillée");
+    } catch (err) {
+      state.budgetPin = "";
+      localStorage.removeItem("duotasks_duo_pin");
+      els.domoPinError.classList.remove("hidden");
+    }
+  });
+}
+
+if (els.domoHeatingToggleBtn) {
+  els.domoHeatingToggleBtn.addEventListener("click", () => {
+    if (state.domoBusy || !state.domo || !state.domo.heating) return;
+    const targetOn = !state.domo.heating.is_on;
+    if (!state.domoConfirmArmed) {
+      state.domoConfirmArmed = true;
+      renderDomotique();
+      state.domoConfirmTimer = setTimeout(() => {
+        resetDomoConfirm();
+        renderDomotique();
+      }, 4000);
+      return;
+    }
+    sendHeatingCommand(targetOn, null);
+  });
+}
+
+document.querySelectorAll(".domo-boost-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (state.domoBusy || !state.domo || !state.domo.heating) return;
+    const mins = Number(btn.dataset.boostMin || 60);
+    if (!Number.isFinite(mins) || mins < 1) return;
+    sendHeatingCommand(true, mins);
+  });
 });
 
 if ("serviceWorker" in navigator) {

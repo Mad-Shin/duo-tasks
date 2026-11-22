@@ -241,3 +241,68 @@ class RevolutWebhookPayload(BaseModel):
     text: str = Field(default="", max_length=1000)
     timestamp: Optional[str | int | float] = None
     dedupe_key: Optional[str] = Field(default=None, max_length=128)
+
+
+# --- Domotique (Shelly Cloud + Local LAN Fallback) ---
+
+
+class ClimateSensorOut(BaseModel):
+    device_id: str
+    name: str
+    model: str = ""
+    temperature_c: Optional[float] = None
+    humidity_pct: Optional[float] = None
+    battery_pct: Optional[int] = None
+    online: bool = False
+    updated_at: str = ""
+
+
+class HeatingDeviceOut(BaseModel):
+    device_id: str
+    name: str
+    model: str = ""
+    channel: int = 0
+    is_on: bool = False
+    online: bool = False
+    relay_temp_c: Optional[float] = None
+    rssi: Optional[int] = None
+    timer_remaining_sec: Optional[int] = None
+    updated_at: str = ""
+
+
+class LightDeviceOut(BaseModel):
+    device_id: str
+    name: str
+    model: str = ""
+    kind: str = "light"
+    channel: int = 0
+    is_on: bool = False
+    brightness: Optional[int] = None
+    online: bool = False
+    updated_at: str = ""
+
+
+class DomotiqueOverviewOut(BaseModel):
+    configured: bool = False
+    source: str = "unconfigured"
+    server_uri: str = ""
+    online: bool = False
+    pin_required: bool = False
+    fetched_at: str = ""
+    error: str = ""
+    heating: Optional[HeatingDeviceOut] = None
+    climate: Optional[ClimateSensorOut] = None
+    lights: list[LightDeviceOut] = Field(default_factory=list)
+
+
+class HeatingControlRequest(BaseModel):
+    on: bool
+    timer_minutes: Optional[int] = Field(default=None, ge=1, le=720)
+
+
+class DeviceControlRequest(BaseModel):
+    on: bool
+    kind: str = Field(default="light", pattern="^(light|switch)$")
+    channel: int = Field(default=0, ge=0, le=3)
+    brightness: Optional[int] = Field(default=None, ge=1, le=100)
+    timer_minutes: Optional[int] = Field(default=None, ge=1, le=720)

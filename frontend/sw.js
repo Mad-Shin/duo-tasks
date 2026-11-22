@@ -1,9 +1,9 @@
-const CACHE_NAME = "duotasks-shell-v32";
+const CACHE_NAME = "duotasks-shell-v33";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
-  "/styles.css?v=32",
-  "/app.js?v=32",
+  "/styles.css?v=33",
+  "/app.js?v=33",
   "/manifest.json",
   "/icon.svg"
 ];

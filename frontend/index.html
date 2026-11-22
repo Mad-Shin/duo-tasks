@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/styles.css?v=32" />
+  <link rel="stylesheet" href="/styles.css?v=33" />
 </head>
 <body>
   <div class="app-shell">
@@ -266,6 +266,118 @@
           <ul class="task-list" id="eventsList"></ul>
           <div class="empty-state hidden" id="eventsEmptyState">
             Aucun événement prévu.
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: DOMOTIQUE (Shelly 1 Gen3 Gas Heating + BLU H&T + Future Bulbs) -->
+      <section id="sec-domotique" class="section-panel">
+        <div class="quiet-section-header">
+          <h2>Domotique</h2>
+          <button type="button" class="budget-cfg-btn" id="domoRefreshBtn" title="Actualiser la domotique" aria-label="Actualiser la domotique">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+            <span>Actualiser</span>
+          </button>
+        </div>
+
+        <div class="domo-card" id="domoCard">
+          <!-- Optional DUO_PIN Unlock Gate -->
+          <div class="budget-pin-gate hidden" id="domoPinGate">
+            <div class="pin-gate-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2.5"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span>Domotique verrouillée</span>
+            </div>
+            <form id="domoPinForm" class="pin-gate-form" autocomplete="off">
+              <input type="password" id="domoPinInput" inputmode="numeric" placeholder="Code PIN Duo…" maxlength="32" required />
+              <button type="submit" class="btn-add">Déverrouiller</button>
+            </form>
+            <div class="pin-gate-error hidden" id="domoPinError">Code PIN incorrect.</div>
+          </div>
+
+          <!-- Unconfigured Setup Guide (shown until SHELLY_AUTH_KEY is added on Render) -->
+          <div class="domo-setup-box hidden" id="domoSetupBox">
+            <div class="domo-eyebrow">
+              <span class="domo-status-dot"></span>
+              <span>Shelly Cloud · À connecter</span>
+            </div>
+            <p class="domo-setup-text">
+              Ajoutez la variable <code>SHELLY_AUTH_KEY</code> dans les paramètres Render pour piloter le chauffage gaz, afficher la température/humidité et détecter vos futures ampoules Shelly.
+            </p>
+            <p class="domo-setup-hint">
+              Clé disponible dans Shelly Smart Control → Paramètres utilisateur → Clé d'autorisation Cloud.
+            </p>
+          </div>
+
+          <!-- Live Domotique Body -->
+          <div id="domoCardBody">
+            <div class="domo-top-row">
+              <div class="domo-eyebrow">
+                <span class="domo-status-dot" id="domoStatusDot"></span>
+                <span id="domoStatusLabel">Shelly · Chargement…</span>
+              </div>
+              <span class="domo-updated" id="domoUpdatedText"></span>
+            </div>
+
+            <div class="domo-error-banner hidden" id="domoErrorBanner"></div>
+
+            <!-- Climate Metrics (Shelly BLU H&T) -->
+            <div class="domo-metrics-row" id="domoMetricsRow">
+              <div class="domo-metric-tile">
+                <div class="domo-metric-head">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0Z"/></svg>
+                  <span>Température</span>
+                </div>
+                <div class="domo-metric-value" id="domoTempValue">— °C</div>
+              </div>
+
+              <div class="domo-metric-tile">
+                <div class="domo-metric-head">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.69 5.66 9.03a7 7 0 1 0 12.68 0Z"/></svg>
+                  <span>Humidité</span>
+                </div>
+                <div class="domo-metric-value" id="domoHumidityValue">— %</div>
+              </div>
+
+              <div class="domo-metric-tile domo-metric-battery hidden" id="domoBatteryTile">
+                <div class="domo-metric-head">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="18" height="10" rx="2"/><line x1="22" y1="11" x2="22" y2="13"/></svg>
+                  <span>Pile</span>
+                </div>
+                <div class="domo-metric-value domo-metric-sm" id="domoBatteryValue">— %</div>
+              </div>
+            </div>
+
+            <!-- Gas Heating Relay Control -->
+            <div class="domo-heating-block" id="domoHeatingBlock">
+              <div class="domo-heating-row">
+                <div class="domo-heating-info">
+                  <span class="domo-flame-badge" id="domoFlameBadge" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4.5 0 7-3.2 7-7.2 0-3.3-2-5.9-3.7-7.8-.6-.7-1.6-.4-1.7.5-.1 1.1-.6 2.2-1.4 2.8-.2-2.7-1.5-5.6-3.7-7.3-.6-.5-1.5 0-1.4.8.2 2-.8 3.8-1.9 5.3C4.4 10.4 5 12.6 5 14.8 5 18.8 7.5 22 12 22Z"/></svg>
+                  </span>
+                  <div class="domo-heating-text">
+                    <div class="domo-heating-name" id="domoHeatingName">Chauffage gaz</div>
+                    <div class="domo-heating-state" id="domoHeatingState">Statut en attente…</div>
+                  </div>
+                </div>
+
+                <button type="button" class="domo-power-btn" id="domoHeatingToggleBtn" disabled>
+                  —
+                </button>
+              </div>
+
+              <div class="domo-boost-row" aria-label="Boost chauffage temporisé">
+                <span class="domo-boost-label">Boost auto-off :</span>
+                <button type="button" class="preset-task-pill domo-boost-btn" data-boost-min="30">30 min</button>
+                <button type="button" class="preset-task-pill domo-boost-btn" data-boost-min="60">1 h</button>
+                <button type="button" class="preset-task-pill domo-boost-btn" data-boost-min="120">2 h</button>
+              </div>
+            </div>
+
+            <!-- Auto-Discovered Future Shelly Bulbs / Switches -->
+            <div class="domo-lights-wrap hidden" id="domoLightsWrap">
+              <div class="domo-lights-header">Éclairages &amp; prises Shelly</div>
+              <ul class="domo-lights-list" id="domoLightsList"></ul>
+            </div>
           </div>
         </div>
       </section>
@@ -590,6 +702,12 @@
       </span>
       <span class="fab-label">Courses</span>
     </button>
+    <button type="button" class="fab-pill" id="dockDomoBtn" data-dock-target="sec-domotique">
+      <span class="fab-ico-wrap" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4.5 0 7-3.2 7-7.2 0-3.3-2-5.9-3.7-7.8-.6-.7-1.6-.4-1.7.5-.1 1.1-.6 2.2-1.4 2.8-.2-2.7-1.5-5.6-3.7-7.3-.6-.5-1.5 0-1.4.8.2 2-.8 3.8-1.9 5.3C4.4 10.4 5 12.6 5 14.8 5 18.8 7.5 22 12 22Z"/></svg>
+      </span>
+      <span class="fab-label">Maison</span>
+    </button>
     <button type="button" class="fab-pill hidden" id="dockBudgetBtn" data-dock-target="sec-budget">
       <span class="fab-ico-wrap" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
@@ -598,6 +716,6 @@
     </button>
   </nav>
 
-  <script src="/app.js?v=32"></script>
+  <script src="/app.js?v=33"></script>
 </body>
 </html>

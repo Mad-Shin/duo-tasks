@@ -28,8 +28,11 @@ from .models import (
     CoupleProfileOut,
     CoupleProfileUpdate,
     CoupleStatsOut,
+    DeviceControlRequest,
+    DomotiqueOverviewOut,
     GroceryStapleCreate,
     GroceryStapleOut,
+    HeatingControlRequest,
     KudosRequest,
     ParsePreviewOut,
     ParsePreviewRequest,
@@ -43,6 +46,7 @@ from .models import (
 )
 from .parser import compute_due_date, infer_aisle, normalize_assignee, normalize_category, parse_quick_add
 from .revolut_parser import compute_dedupe_key, is_sensitive_revolut_alert, parse_revolut_notification
+from .shelly_client import control_shelly_device, fetch_domotique_overview, get_shelly_config
 
 # Prevent Windows registry MIME-type quirks from breaking JS modules or Service Workers
 mimetypes.add_type("application/javascript", ".js")
@@ -1543,6 +1547,77 @@ async def revolut_macrodroid_webhook(
 
     await manager.broadcast({"event": "sync", "action": "budget_webhook_applied"})
     return result
+
+
+# --- Domotique (Shelly Cloud + Local LAN Fallback) ---
+
+
+@app.get("/api/domotique", response_model=DomotiqueOverviewOut)
+async def get_domotique_overview(
+    force: bool = Query(default=False),
+    x_duo_pin: Optional[str] = Header(default=None, alias="X-Duo-Pin"),
+) -> dict[str, Any]:
+    _verify_duo_pin(x_duo_pin)
+    return await fetch_domotique_overview(force=force)
+
+
+@app.post("/api/domotique/heating", response_model=DomotiqueOverviewOut)
+async def control_domotique_heating(
+    payload: HeatingControlRequest,
+    x_duo_pin: Optional[str] = Header(default=None, alias="X-Duo-Pin"),
+) -> dict[str, Any]:
+    _verify_duo_pin(x_duo_pin)
+    cfg = get_shelly_config()
+    if not cfg["auth_key"] and not cfg["local_host"]:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SHELLY_AUTH_KEY non configuré sur le serveur",
+        )
+    # Resolve current heating device id from cached/live overview if available
+    current = await fetch_domotique_overview(force=False)
+    heating = current.get("heating") or {}
+    device_id = str(heating.get("device_id") or cfg["heating_id"])
+    channel = int(heating.get("channel") or 0)
+    try:
+        updated = await control_shelly_device(
+            device_id=device_id,
+            kind="switch",
+            channel=channel,
+            on=payload.on,
+            timer_minutes=payload.timer_minutes,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    await manager.broadcast({"event": "sync", "action": "domotique_heating_changed"})
+    return updated
+
+
+@app.post("/api/domotique/devices/{device_id}/control", response_model=DomotiqueOverviewOut)
+async def control_domotique_device(
+    device_id: str,
+    payload: DeviceControlRequest,
+    x_duo_pin: Optional[str] = Header(default=None, alias="X-Duo-Pin"),
+) -> dict[str, Any]:
+    _verify_duo_pin(x_duo_pin)
+    cfg = get_shelly_config()
+    if not cfg["auth_key"] and not cfg["local_host"]:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SHELLY_AUTH_KEY non configuré sur le serveur",
+        )
+    try:
+        updated = await control_shelly_device(
+            device_id=device_id,
+            kind=payload.kind,
+            channel=payload.channel,
+            on=payload.on,
+            brightness=payload.brightness,
+            timer_minutes=payload.timer_minutes,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    await manager.broadcast({"event": "sync", "action": "domotique_device_changed"})
+    return updated
 
 
 @app.websocket("/ws")
